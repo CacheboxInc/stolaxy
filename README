@@ -1,0 +1,17 @@
+Storage Galaxy (stolaxy)
+
+It is an attempt to put together a quick storage appliance with the
+following capabilities.
+
+1. NFS Server
+2. Distributed datastore
+3. Tiering
+4. Deduplication
+5. Compression
+
+Whereever possible we will use python to provide an
+implementation. This may hamper performance and wherever we feel the
+performance is unacceptable to continue we will attempt to provide a
+better implementation using C. Note: The goal of this project is not
+to provide a blazingly fast storage service but a platform for blazing
+fast prototyping.
