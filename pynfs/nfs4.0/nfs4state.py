@@ -12,6 +12,7 @@ except:
     import StringIO
 from stat import *
 import sha
+import shutil
 import os
 
 inodecount = 0
@@ -1341,8 +1342,12 @@ class HardHandle(NFSFileHandle):
         self.dirent = {}
         self.mtime = 0
         self.fh = self
-        self.cookie = 20
+        self.cookie = 0
+
         self.state = NFSFileState()
+        self.link_filehandle = None
+        self.fattr4_numlinks = 0
+
         self.supported = { FATTR4_SUPPORTED_ATTRS : "r",
                            FATTR4_TYPE : "r",
                            FATTR4_FH_EXPIRE_TYPE : "r",
@@ -1520,6 +1525,60 @@ class HardHandle(NFSFileHandle):
         fh.close()
         return data
 
+    def destruct(self):
+        # FRED - Note this currently does nothing -
+        #      - and should do nothing if link count is positive
+        if self.fattr4_numlinks > 0: return
+        #print "destructing: %s" % repr(self)
+        if self.fattr4_type == NF4DIR:
+            for subfile in self.dirent.values():
+                subfile.destruct()
+
+    def remove(self, target):
+        self.fattr4_change += 1
+        file = self.dirent[target]
+        del self.dirent[target]
+        file.fattr4_numlinks -= 1
+        file.fattr4_change += 1
+        file.fattr4_time_metadata = converttime()
+        file.destruct()
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
+        self.fattr4_time_metadata = converttime()
+
+    def __link(self, file, newname):
+        if self.fattr4_type != NF4DIR:
+             raise "__link called on non-directory"
+        file.fattr4_change += 1
+        file.fattr4_numlinks += 1
+        file.fattr4_time_metadata = converttime()
+        if file.fattr4_type == NF4DIR:
+            file.parent = self
+        self.fattr4_change += 1
+        self.dirent[newname] = file
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
+        self.fattr4_time_metadata = converttime()
+        return
+    
+    def rename(self, oldfh, oldname, newname): # self = newfh
+        file = oldfh.dirent[oldname]
+        old_filefull = os.path.join(self.file, oldname)
+        new_filefull = os.path.join(self.file, newname)
+        fh = HardHandle(None, newname, self, new_filefull)
+        file.fattr4_change += 1
+        file.fattr4_time_metadata = converttime()
+        self.dirent[newname] = fh
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
+        self.fattr4_change += 1
+        self.fattr4_time_metadata = converttime()
+        del self.dirent[oldname]
+        file.destruct()
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
+        self.fattr4_time_metadata = converttime()
+        shutil.move(old_filefull, new_filefull)
 
     def read_dir(self, cookie = 0):
         stat_struct = os.stat(self.file)
@@ -1540,6 +1599,105 @@ class HardHandle(NFSFileHandle):
         
     def read_link(self):
         return os.readlink(self.file)
+
+    def set_attributes(self, attrdict):
+        """Set attributes and return bitmask of those set
+
+        attrdict is of form {bitnum:value}
+        For each bitnum, it will try to call self.set_fattr4_<name> if it
+        exists, otherwise it will just set the variable self.fattr4_<name>.
+        """
+        mapping = nfs4lib.list2bitmap
+        ret_list = []
+        for attr in attrdict.keys():
+            if not self.supported.has_key(attr):
+                raise NFS4Error(NFS4ERR_ATTRNOTSUPP, attrs=mapping(ret_list))
+            if 'w' not in self.supported[attr]:
+                raise NFS4Error(NFS4ERR_INVAL, attrs=mapping(ret_list))
+            if 'n' in self.supported[attr]:
+                raise NFS4Error(NFS4ERR_ATTRNOTSUPP, attrs=mapping(ret_list))
+            name = "fattr4_" + nfs4lib.get_attr_name(attr)
+            self.fattr4_change += 1
+            try:
+                # Use set function, if it exists
+                set_funct = getattr(self, "set_" + name)
+                set_funct(attrdict[attr])
+            except AttributeError:
+                # Otherwise, just set the variable
+                setattr(self, name, attrdict[attr])
+            except NFS4Error, e:
+                # Note attributes set so far in any error that occurred
+                e.attrs = mapping(ret_list)
+                raise
+            self.fattr4_time_metadata = converttime()
+            ret_list.append(attr)
+        return mapping(ret_list)
+
+    def set_fattr4_size(self, newsize):
+        # FRED - How should this behave on non REG files? especially a DIR?
+        if self.fattr4_type == NF4REG and newsize != self.fattr4_size:
+            if newsize < self.fattr4_size:
+                self.file.truncate(newsize)
+            else:
+                # Pad with zeroes
+                self.file.seek(0, 2)
+                self.file.write(chr(0) * (newsize-self.fattr4_size))
+            self.fattr4_size = newsize
+            self.fattr4_time_modify = converttime()
+        else:
+            raise NFS4Error(NFS4ERR_INVAL)
+
+    def set_fattr4_time_modify_set(self, new_time):
+        if new_time.set_it == SET_TO_CLIENT_TIME4:
+            self.fattr4_time_modify = new_time.time
+        else:
+            self.fattr4_time_modify = converttime()
+
+    def set_fattr4_time_access_set(self, new_time):
+        if new_time.set_it == SET_TO_CLIENT_TIME4:
+            self.fattr4_time_access = new_time.time
+        else:
+            self.fattr4_time_access = converttime()
+
+    def set_fattr4_acl(self, acl):
+        if POSIXACL:
+            try:
+                nfs4acl.maps_to_posix(acl)
+            except nfs4acl.ACLError, e:
+                print "*"*50
+                print e
+                print "*"*50
+                raise NFS4Error(NFS4ERR_INVAL)
+        self.fattr4_acl = acl
+        self.fattr4_mode = nfs4acl.acl2mode(acl)
+
+    def create(self, name, type, attrs={}):
+        """ Create a file of given type with given attrs, return attrs set
+
+        type is a nfs4types.createtype4 instance
+        """
+        # Must make sure that if it fails, nothing is changed
+        fullfile = os.path.join(self.file, name)
+        if self.fattr4_type != NF4DIR:
+            raise "create called on non-directory (%s)" % self.ref
+        if os.path.exists(fullfile):
+            raise "attempted to create already existing file."
+        fh = HardHandle(None, name, self, fullfile)
+        fd = open(fullfile, 'w')
+        fd.close()
+        if FATTR4_SIZE in attrs and type.type != NF4REG:
+            del attrs[FATTR4_SIZE]
+        if FATTR4_TIME_MODIFY_SET in attrs:
+            del attrs[FATTR4_TIME_MODIFY_SET]
+        if FATTR4_TIME_ACCESS_SET in attrs:
+            del attrs[FATTR4_TIME_ACCESS_SET]
+        self.fattr4_change += 1
+        self.fattr4_time_metadata = converttime()
+        attrset = fh.set_attributes(attrs)
+        self.dirent[name] = fh
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
+        return attrset
 
     def write(self, offset, data):
         fh = open(self.file, 'r+')
