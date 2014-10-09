@@ -10,10 +10,12 @@ try:
     StringIO = cStringIO
 except:
     import StringIO
+
+import logging
 from stat import *
 import sha
 import shutil
-import os
+logger = logging.getLogger('nfslog')
 
 inodecount = 0
 generationcount = 0
@@ -271,7 +273,7 @@ class NFSServerState:
         lastseq = info.lastseqid
         #print "  check_seqid: new: %s, last: %s" % (seqid, lastseq)
         if lastseq == seqid:
-            print " ***REPLAY*** "
+            logger.info(" ***REPLAY*** ")
             return info.cached_response
         if not info.confirmed and not open_confirm:
             # RFC 3530 sec 14.2.18
@@ -855,14 +857,14 @@ class NFSFileState:
                list[i].type == list[i-1].type:
                   list[i-1].end = list[i].end
                   del list[i]
-        print list
+        logger.info(list)
 
     def removeposixlock(self, list, type, start, end):
         """Removes lock from sorted list, splitting existing locks as necessary
         """
         self.__removerange(list, start, end)
         list.sort()
-        print list
+        logger.info(list)
 
     def __removerange(self, list, start, end):
         """Removes locks in given range, shrinking locks that half-overlap"""
@@ -1173,9 +1175,7 @@ class VirtualHandle(NFSFileHandle):
             try:
                 nfs4acl.maps_to_posix(acl)
             except nfs4acl.ACLError, e:
-                print "*"*50
-                print e
-                print "*"*50
+                logger.error(e)
                 raise NFS4Error(NFS4ERR_INVAL)
         self.fattr4_acl = acl
         self.fattr4_mode = nfs4acl.acl2mode(acl)
@@ -1326,7 +1326,7 @@ class VirtualHandle(NFSFileHandle):
         self.fattr4_change += 1
         try: self.file.seek(offset)
         except MemoryError:
-            print "MemError, offset=%s, count=%s" % (str(offset), str(len(data)))
+            logger.info("MemError, offset=%s, count=%s" % (str(offset), str(len(data))))
             raise
         self.file.write(data)
         self.file.seek(0, 2) # Seek to eof
@@ -1411,10 +1411,10 @@ class HardHandle(NFSFileHandle):
 
         If yes, return it.  If no, return None
         """
-        print ('lookup:%s' % name).center(80, '-')
+        logger.info(('lookup:%s' % name).center(80, '-'))
         if self.fattr4_type != NF4DIR:
             raise "lookup called on non directory."
-        print self.file, self.dirent
+        logger.info(self.file, self.dirent)
         try: return self.dirent[name]
         except KeyError: return None
 
@@ -1498,7 +1498,7 @@ class HardHandle(NFSFileHandle):
             elif attr == FATTR4_FILEHANDLE:
                 ret_dict[attr] = str(self.handle)
             else:
-                print ('WARNING: %s not handled' % attr).center(80, '#')
+                logger.warn(('WARNING: %s not handled' % attr).center(80, '#'))
         return ret_dict
 
     def get_fhclass(self):
@@ -1518,6 +1518,12 @@ class HardHandle(NFSFileHandle):
         else:
             return NF4REG
 
+    def is_empty(self):
+        """For a directory, return True if empty, False otherwise"""
+        if self.fattr4_type == NF4DIR:
+            return len(self.dirent) == 0
+        raise "is_empty() called on non-dir"
+
     def read(self, offset, count):
         fh = open(self.file)
         fh.seek(offset)
@@ -1535,6 +1541,10 @@ class HardHandle(NFSFileHandle):
                 subfile.destruct()
 
     def remove(self, target):
+        fullfile = os.path.join(self.file, target)
+        if not os.path.exists(fullfile):
+            raise "cannot find  file."
+        stat_struct = os.stat(fullfile)
         self.fattr4_change += 1
         file = self.dirent[target]
         del self.dirent[target]
@@ -1545,6 +1555,12 @@ class HardHandle(NFSFileHandle):
         self.fattr4_size = len(self.dirent)
         self.fattr4_time_modify = converttime()
         self.fattr4_time_metadata = converttime()
+        if S_ISDIR(stat_struct.st_mode):
+            shutil.rmtree(fullfile)
+        elif S_ISLNK(stat_struct.st_mode):
+            os.unlink(fullfile) 
+        else:
+            os.remove(fullfile)
 
     def __link(self, file, newname):
         if self.fattr4_type != NF4DIR:
@@ -1664,9 +1680,7 @@ class HardHandle(NFSFileHandle):
             try:
                 nfs4acl.maps_to_posix(acl)
             except nfs4acl.ACLError, e:
-                print "*"*50
-                print e
-                print "*"*50
+                logger.error(e)
                 raise NFS4Error(NFS4ERR_INVAL)
         self.fattr4_acl = acl
         self.fattr4_mode = nfs4acl.acl2mode(acl)
@@ -1683,8 +1697,11 @@ class HardHandle(NFSFileHandle):
         if os.path.exists(fullfile):
             raise "attempted to create already existing file."
         fh = HardHandle(None, name, self, fullfile)
-        fd = open(fullfile, 'w')
-        fd.close()
+        if type.type == NF4DIR:
+            os.mkdir(fullfile)
+        else:
+            fd = open(fullfile, 'w')
+            fd.close()
         if FATTR4_SIZE in attrs and type.type != NF4REG:
             del attrs[FATTR4_SIZE]
         if FATTR4_TIME_MODIFY_SET in attrs:
@@ -1787,7 +1804,7 @@ class DirList:
         if i is None:
             return []
         else:
-            print self.list[i:]
+            logger.info(self.list[i:])
             return self.list[i:]
 
     def has_key(self, name):

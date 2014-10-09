@@ -25,6 +25,9 @@ if  __name__ == "__main__":
     if os.path.isfile(os.path.join(sys.path[0], 'lib', 'testmod.py')):
         sys.path.insert(1, os.path.join(sys.path[0], 'lib'))
 
+import datetime
+import getopt
+import logging
 from nfs4_const import *
 from nfs4_type import *
 import nfs4_pack
@@ -39,6 +42,15 @@ from xdrlib import Error as XDRError
 unacceptable_names = [ "", ".", ".." ]
 unacceptable_characters = [ "/", "~", "#", ]
 #unacceptable_unicode_values = [ 0xd800, 0xdb7f, 0xdb80, 0xdb80, 0xdbff, 0xdc00, 0xdf80, 0xdfff, 0xFFFE, 0xFFFF ];
+
+logfile = "nfs_%s.log" % datetime.datetime.today().strftime('%Y%m%d')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('nfslog')
+fh = logging.FileHandler(logfile)
+fh.setFormatter(formatter)
+logger.setLevel(logging.WARNING)
+fh.setLevel(logging.WARNING)
+logger.addHandler(fh)
 
 def verify_name(name):
     """Check potential filename and return appropriate error code"""
@@ -106,29 +118,27 @@ class NFS4Server(rpc.RPCServer):
         self.verfnum = 0
 
     def handle_0(self, data, cred):
-        print
-        print "******** TCP RPC NULL CALL ********"
-        print "  flavor = %i" % cred.flavor
+        logger.info("******** TCP RPC NULL CALL ********")
+        logger.info("  flavor = %i" % cred.flavor)
         if cred.flavor == rpc.RPCSEC_GSS:
             gss = self.security[cred.flavor]
             body = gss.read_cred(cred.body)
             if body.gss_proc:
                 return gss.handle_proc(body, data)
         if data != '':
-            print "  ERROR - unexpected data"
+            logger.error("  ERROR - unexpected data")
             return rpc.GARBAGE_ARGS, ''
         else:
             return rpc.SUCCESS, ''
     
     def handle_1(self, data, cred):
         self.nfs4unpacker.reset(data)
-        print
-        print "********** TCP RPC CALL ***********"
+        logger.info("********** TCP RPC CALL ***********")
         ok, results, tag = self.O_Compound()
         try:
             self.nfs4unpacker.done()
         except XDRError:
-            print repr(self.nfs4unpacker.get_buffer())
+            logger.error(str(repr(self.nfs4unpacker.get_buffer())))
             
             raise
             return rpc.GARBAGE_ARGS, ''
@@ -169,8 +179,8 @@ class NFS4Server(rpc.RPCServer):
             #print "ERROR"
             #raise
             return NFS4ERR_BADXDR, [], tag
-        print "TCP NFSv4 COMPOUND call, tag: %s, n_ops: %d" % \
-              (repr(tag), len(cmp4args.argarray))
+        logger.info("TCP NFSv4 COMPOUND call, tag: %s, n_ops: %d" % \
+              (repr(tag), len(cmp4args.argarray)))
         if cmp4args.minorversion <> 0:
             return NFS4ERR_MINOR_VERS_MISMATCH, [], tag
         if not verify_utf8(tag):
@@ -180,26 +190,26 @@ class NFS4Server(rpc.RPCServer):
         ok = NFS4_OK
         for op in cmp4args.argarray:
             opname = nfs_opnum4.get(op.argop, 'op_illegal')
-            print "*** %s (%d) ***" % (opname, op.argop)
+            logger.info("*** %s (%d) ***" % (opname, op.argop))
             ok, result = getattr(self, opname.lower())(op)
             results += [ result ]
             if ok <> NFS4_OK:
-                print " ! error %s" % nfsstat4[ok]
+                logger.error(" ! error %s" % nfsstat4[ok])
                 break
-        print "Replying. Status %s (%d)" % (nfsstat4[ok], ok)
+        logger.info("Replying. Status %s (%d)" % (nfsstat4[ok], ok))
         return (ok, results, tag)
 
     # FIXME
     def op_access(self, op):
-        print "  CURRENT FILEHANDLE: %s" % self.curr_fh
-        print "  REQUESTED ACCESS: %s" % access2string(op.opaccess.access)
+        logger.info("  CURRENT FILEHANDLE: %s" % self.curr_fh)
+        logger.info("  REQUESTED ACCESS: %s" % access2string(op.opaccess.access))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         all = ACCESS4_READ | ACCESS4_LOOKUP | ACCESS4_MODIFY | \
             ACCESS4_EXTEND | ACCESS4_DELETE | ACCESS4_EXECUTE
         all = ~all
         if op.opaccess.access & all > 0:
-            print "!!!! Received invalid ACCESS bits in op.opaccess.access"
+            logger.info("!!!! Received invalid ACCESS bits in op.opaccess.access")
             return simple_error(NFS4ERR_INVAL)
         a4_supported = self.curr_fh.supported_access()
         # according to page 140 of 3530, we only return the supported
@@ -207,25 +217,25 @@ class NFS4Server(rpc.RPCServer):
         a4_supported = op.opaccess.access & a4_supported
         a4_access = self.curr_fh.evaluate_access()
         a4_access = op.opaccess.access & a4_access # bitwise and
-        print "  RESULT SUPPORTED: %s" % access2string(a4_supported)
-        print "  RESULT ACCESS: %s" % access2string(a4_access)
+        logger.info("  RESULT SUPPORTED: %s" % access2string(a4_supported))
+        logger.info("  RESULT ACCESS: %s" % access2string(a4_access))
         a4resok = ACCESS4resok(a4_supported, a4_access)
         return simple_error(NFS4_OK, a4resok)
 
     def op_close(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
-        print "  SEQID: %i" % op.opclose.seqid
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
+        logger.info("  SEQID: %i" % op.opclose.seqid)
         stateid = op.opclose.open_stateid
         try:
             replay = self.state.check_seqid(stateid, op.opclose.seqid)
             if replay:
                 self.curr_fh, args = self.check_replay(op, replay)
-                print "Replay args = %s"%str(args)
+                logger.info("Replay args = %s"%str(args))
                 return simple_error(*args)
             # Note must cache response, so need to call raise instead of return
             if not self.curr_fh:
                 raise NFS4Error(NFS4ERR_NOFILEHANDLE)
-            print "  CLOSE fh", self.curr_fh.handle
+            logger.info("  CLOSE fh", self.curr_fh.handle)
             self.state.close(stateid)
         except NFS4Error, e:
             self.state.advance_seqid(stateid, op, (e.code,))
@@ -238,7 +248,7 @@ class NFS4Server(rpc.RPCServer):
     # Note: since currently using ram based fs, we lie here (and in write)
     # and pretend all operations are FILE_SYNC4
     def op_commit(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         if self.curr_fh.get_type() == NF4DIR:
@@ -251,7 +261,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, c4resok)
 
     def op_create(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         e = verify_name(op.opcreate.objname)
@@ -265,7 +275,7 @@ class NFS4Server(rpc.RPCServer):
         try:
             old_cinfo = self.curr_fh.fattr4_change
             attrs = op.opcreate.createattrs
-            print attrs
+            logger.info(attrs)
             attrset = self.curr_fh.create(op.opcreate.objname, op.opcreate.objtype, attrs)
             new_cinfo = self.curr_fh.fattr4_change
             self.curr_fh = self.curr_fh.lookup(op.opcreate.objname)
@@ -284,7 +294,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4ERR_NOTSUPP)
 
     def op_getattr(self, op):
-        print "  ATTRMASK: %s" % [nfs4lib.get_attr_name(bit) for bit in nfs4lib.bitmap2list(op.opgetattr.attr_request)]
+        logger.info("  ATTRMASK: %s" % [nfs4lib.get_attr_name(bit) for bit in nfs4lib.bitmap2list(op.opgetattr.attr_request)])
         try:
             if not self.curr_fh:
                 return simple_error(NFS4ERR_NOFILEHANDLE)
@@ -298,15 +308,15 @@ class NFS4Server(rpc.RPCServer):
     def op_getfh(self, op):
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
-        print "  FILEHANDLE %s" % self.curr_fh.handle
+        logger.info("  FILEHANDLE %s" % self.curr_fh.handle)
         # XXX BUG - fhcache not set on getattr or readdir(getattr)
         self.fhcache[self.curr_fh.handle] = self.curr_fh
         confirmres = GETFH4resok(str(self.curr_fh.handle))
         return simple_error(NFS4_OK, confirmres)
 
     def op_link(self, op):
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
-        print "  SOURCE OBJECT %s" % op.oplink.newname
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
+        logger.info("  SOURCE OBJECT %s" % op.oplink.newname)
         if self.curr_fh is None or self.saved_fh is None:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         if self.curr_fh.get_type() != NF4DIR:
@@ -325,7 +335,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, l4resok)
 
     def op_lock(self, op):
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
         try:
             replay = None
             if op.oplock.locker.new_lock_owner:
@@ -364,7 +374,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, l4resok)
 
     def op_lockt(self, op):
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
 
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
@@ -381,7 +391,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK)
 
     def op_locku(self, op):
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
         stateid = op.oplocku.lock_stateid
         try:
             replay = self.state.check_seqid(stateid, op.oplocku.seqid)
@@ -400,8 +410,8 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, sid)
 
     def op_lookup(self, op):
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
-        print "  REQUESTED OBJECT %s" % op.oplookup.objname
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
+        logger.info("  REQUESTED OBJECT %s" % op.oplookup.objname)
         
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
@@ -418,19 +428,19 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK)
 
     def op_lookupp(self, op):
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         if self.curr_fh.get_type() != NF4DIR:
             return simple_error(NFS4ERR_NOTDIR)
         self.curr_fh = self.curr_fh.do_lookupp()
-        print "  PARENT FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  PARENT FILEHANDLE %s" % repr(self.curr_fh))
         if self.curr_fh is None:
             return simple_error(NFS4ERR_NOENT)
         return simple_error(NFS4_OK)
 
     def op_nverify(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         try:
@@ -446,11 +456,11 @@ class NFS4Server(rpc.RPCServer):
             return simple_error(NFS4_OK)
 
     def op_open(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
-        print "  SEQID: %i" % op.opopen.seqid
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
+        logger.info("  SEQID: %i" % op.opopen.seqid)
         owner = op.opopen.owner
-        print "  CLIENTID: %d" % owner.clientid
-        print "  OWNER: '%s'" % repr(owner.owner)
+        logger.info("  CLIENTID: %d" % owner.clientid)
+        logger.info("  OWNER: '%s'" % repr(owner.owner))
         try:
             if not self.state.confirmed.exists(c=owner.clientid):
                 if self.state.unconfirmed.exists(c=owner.clientid):
@@ -471,14 +481,14 @@ class NFS4Server(rpc.RPCServer):
             if self.curr_fh.get_type() != NF4DIR:
                 raise NFS4Error(NFS4ERR_NOTDIR)
             filename = op.opopen.claim.file
-            print "  FILE %s" % filename
+            logger.info("  FILE %s" % filename)
             e = verify_name(filename)
             if e: raise NFS4Error(e)
             # At this point we know it is CLAIM_NULL with valid filename and cfh
             attrset = 0L
             ci_old = self.curr_fh.fattr4_change
             if op.opopen.openhow.opentype == OPEN4_CREATE:
-                print "  CREATING FILE."
+                logger.info("  CREATING FILE.")
                 type_reg = createtype4(NF4REG)
                 existing = self.curr_fh.lookup(filename)
                 if existing is not None:
@@ -511,7 +521,7 @@ class NFS4Server(rpc.RPCServer):
                         attrset = self.curr_fh.create(filename, type_reg, attrs)
                         existing = self.curr_fh.lookup(filename)
             else:
-                print "  OPENING EXISTING FILE."
+                logger.info("  OPENING EXISTING FILE.")
                 existing = self.curr_fh.lookup(filename)
                 if existing is None:
                     raise NFS4Error(NFS4ERR_NOENT)
@@ -525,7 +535,7 @@ class NFS4Server(rpc.RPCServer):
             sid, flags = self.state.open(existing, owner,
                                   op.opopen.share_access, op.opopen.share_deny)
         except NFS4Error, e:
-            print "Open error"
+            logger.info("Open error")
             self.state.advance_seqid(owner, op, (e.code,))
             return simple_error(e.code)
         ci_new = self.curr_fh.fattr4_change
@@ -539,12 +549,12 @@ class NFS4Server(rpc.RPCServer):
 
     # FIXME: actually open the attr directory, change the filehandle
     def op_openattr(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         return simple_error(NFS4ERR_NOTSUPP)
 
     def op_open_confirm(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
-        print "  SEQID: %i" % op.opopen_confirm.seqid
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
+        logger.info("  SEQID: %i" % op.opopen_confirm.seqid)
         stateid = op.opopen_confirm.open_stateid
         try:
             replay = self.state.check_seqid(stateid, op.opopen_confirm.seqid,
@@ -568,7 +578,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, oc4resok)
 
     def op_open_downgrade(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         stateid = op.opopen_downgrade.open_stateid
         try:
             replay = self.state.check_seqid(stateid, op.opopen_downgrade.seqid)
@@ -591,7 +601,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, od4resok)
 
     def op_putfh(self, op):
-        print "  FILEHANDLE '%s'" % repr(op.opputfh.object)
+        logger.info("  FILEHANDLE '%s'" % repr(op.opputfh.object))
         # check access!
         if not self.fhcache.has_key(op.opputfh.object):
             return simple_error(NFS4ERR_BADHANDLE)
@@ -599,22 +609,22 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK)
 
     def op_putpubfh(self, op):
-        print "  NEW FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  NEW FILEHANDLE %s" % repr(self.curr_fh))
         if self.pubfh is None:
             return simple_error(NFS4ERR_NOTSUPP)
         self.curr_fh = self.pubfh
         return simple_error(NFS4_OK)
 
     def op_putrootfh(self, op):
-        print "  NEW FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  NEW FILEHANDLE %s" % repr(self.curr_fh))
         self.curr_fh = self.rootfh
         return simple_error(NFS4_OK)
 
     def op_read(self, op):
         offset = op.opread.offset
         count = op.opread.count
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
-        print "  OFFSET: %d COUNT %d" % (offset, count)
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
+        logger.info("  OFFSET: %d COUNT %d" % (offset, count))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         if self.curr_fh.get_type() == NF4DIR:
@@ -625,7 +635,7 @@ class NFS4Server(rpc.RPCServer):
             self.state.check_read(self.curr_fh, op.opread.stateid,
                                   offset, count)
             read_data = self.curr_fh.read(offset, count)
-            print "  READ DATA: len=%i" % len(read_data)
+            logger.info("  READ DATA: len=%i" % len(read_data))
         except NFS4Error, e:
             return simple_error(e.code)
         if len(read_data) < count:
@@ -637,10 +647,10 @@ class NFS4Server(rpc.RPCServer):
 
     def op_readdir(self, op):
         # We ignore dircount hint
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
-        print "  COOKIEVERF: %s, %s" % ( repr(op.opreaddir.cookieverf), repr(op.opreaddir.cookie))
-        print "  DIRCOUNT: %d MAXCOUNT: %d" % ( op.opreaddir.dircount, op.opreaddir.maxcount)
-        print "  ATTRMASK: %s" % [nfs4lib.get_attr_name(bit) for bit in nfs4lib.bitmap2list(op.opreaddir.attr_request)]
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
+        logger.info("  COOKIEVERF: %s, %s" % ( repr(op.opreaddir.cookieverf), repr(op.opreaddir.cookie)))
+        logger.info("  DIRCOUNT: %d MAXCOUNT: %d" % ( op.opreaddir.dircount, op.opreaddir.maxcount))
+        logger.info("  ATTRMASK: %s" % [nfs4lib.get_attr_name(bit) for bit in nfs4lib.bitmap2list(op.opreaddir.attr_request)])
 
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
@@ -691,31 +701,32 @@ class NFS4Server(rpc.RPCServer):
             for entry in entries:
                 e4 = [entry4(entry.cookie, entry.name, entry.attr, nextentry=e4)]
             if len(entries) < len(dirlist):
-                print 'eof = 0'
+                logger.info('eof = 0')
                 d4 = dirlist4(e4, eof=0)
             else:
-                print 'eof = 1'
+                logger.info('eof = 1')
                 d4 = dirlist4(e4, eof=1)
         except NFS4Error, e:
             return simple_error(e.code)
-        print verifier, d4
+        logger.info(str(verifier))
+        logger.info(d4)
         rdresok = READDIR4resok(cookieverf=verifier, reply=d4)
         return simple_error(NFS4_OK, rdresok)
 
     def op_readlink(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         if self.curr_fh.get_type() != NF4LNK:
             return simple_error(NFS4ERR_INVAL)
         link_text = self.curr_fh.read_link()
-        print "  LINK_TEXT: %s" % link_text
+        logger.info("  LINK_TEXT: %s" % link_text)
         rl4resok = READLINK4resok(link_text)
         return simple_error(NFS4_OK, rl4resok)
 
     def op_remove(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
-        print "  TARGET: %s" % op.opremove.target
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
+        logger.info("  TARGET: %s" % op.opremove.target)
         #XXX: CHECK ACCESS
         if self.curr_fh is None:
             return simple_error(NFS4ERR_NOFILEHANDLE)
@@ -736,10 +747,10 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, r4resok)
 
     def op_rename(self, op):
-        print "  SAVED FILEHANDLE: %s" % repr(self.saved_fh)  # old dir
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh) # new dir
-        print "  OLD NAME: %s" % op.oprename.oldname
-        print "  NEW NAME: %s" % op.oprename.newname
+        logger.info("  SAVED FILEHANDLE: %s" % repr(self.saved_fh))  # old dir
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)) # new dir
+        logger.info("  OLD NAME: %s" % op.oprename.oldname)
+        logger.info("  NEW NAME: %s" % op.oprename.newname)
         if self.curr_fh is None or self.saved_fh is None:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         oldname = op.oprename.oldname
@@ -786,14 +797,14 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK)
 
     def op_restorefh(self, op):
-        print "  SAVED FILEHANDLE: %s" % repr(self.saved_fh)
+        logger.info("  SAVED FILEHANDLE: %s" % repr(self.saved_fh))
         if not self.saved_fh:
             return simple_error(NFS4ERR_RESTOREFH)
         self.curr_fh = self.saved_fh
         return simple_error(NFS4_OK)
 
     def op_savefh(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         self.saved_fh = self.curr_fh
@@ -802,7 +813,7 @@ class NFS4Server(rpc.RPCServer):
     # FIXME: no idea how to set up NFS4_OK conditions; actually get sec information
     def op_secinfo(self, op):
         # STUB
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         if self.curr_fh.get_type() != NF4DIR:
@@ -813,8 +824,8 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, resok)
 
     def op_setattr(self, op):
-        print "  CURRENT FILEHANDLE: %s" % repr(self.curr_fh)
-        print op.opsetattr.obj_attributes
+        logger.info("  CURRENT FILEHANDLE: %s" % repr(self.curr_fh))
+        logger.info(op.opsetattr.obj_attributes)
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE, 0L)
         try:
@@ -839,7 +850,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK, attrset)
 
     def op_setclientid(self, op):
-        print "  ID: %s" % ( op.opsetclientid.client.id)
+        logger.info("  ID: %s" % ( op.opsetclientid.client.id))
         x = op.opsetclientid.client.id
         v = op.opsetclientid.client.verifier
         k = (op.opsetclientid.callback, op.opsetclientid.callback_ident)
@@ -864,7 +875,7 @@ class NFS4Server(rpc.RPCServer):
             # This should never happen
             return simple_error(NFS4ERR_INVAL)
         s = self.nextverf()
-        print "   VERIFIER: %s" % repr(s)
+        logger.info("   VERIFIER: %s" % repr(s))
         self.state.unconfirmed.add(v,x,c,k,s,p)
         resok = SETCLIENTID4resok(c, s)
         return simple_error(NFS4_OK, resok)
@@ -873,7 +884,7 @@ class NFS4Server(rpc.RPCServer):
         c = op.opsetclientid_confirm.clientid
         s = op.opsetclientid_confirm.setclientid_confirm
         p = "Stub" # Principal
-        print "  ARGS, clientid %s, verifier %s" % (c, printverf(s))
+        logger.info("  ARGS, clientid %s, verifier %s" % (c, printverf(s)))
         # NOTE this makes the assumption that only one entry can match c=c
         entry = self.state.confirmed.find(c=c)
         entry2 = self.state.unconfirmed.find(c=c)
@@ -904,7 +915,7 @@ class NFS4Server(rpc.RPCServer):
         return simple_error(NFS4_OK)
             
     def op_verify(self, op):
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         try:
@@ -924,9 +935,9 @@ class NFS4Server(rpc.RPCServer):
     def op_write(self, op):
         offset = op.opwrite.offset
         data = op.opwrite.data
-        print "  CURRENT FILEHANDLE %s" % repr(self.curr_fh)
-        print "  OFFSET: %d COUNT %d" % (offset, len(data))
-        print "  STATEID { seqid: %s other: %s}" % (repr(op.opwrite.stateid.seqid), repr(op.opwrite.stateid.other))
+        logger.info("  CURRENT FILEHANDLE %s" % repr(self.curr_fh))
+        logger.info("  OFFSET: %d COUNT %d" % (offset, len(data)))
+        logger.info("  STATEID { seqid: %s other: %s}" % (repr(op.opwrite.stateid.seqid), repr(op.opwrite.stateid.other)))
         if not self.curr_fh:
             return simple_error(NFS4ERR_NOFILEHANDLE)
         if self.curr_fh.get_type() == NF4DIR:
@@ -938,7 +949,7 @@ class NFS4Server(rpc.RPCServer):
             self.state.check_write(self.curr_fh, op.opwrite.stateid,
                                    offset, len(data))
             count = self.curr_fh.write(offset, data)
-            print "  wrote %i bytes" % count
+            logger.info("  wrote %i bytes" % count)
         except NFS4Error, e:
             return simple_error(e.code)
         w4resok = WRITE4resok(count, FILE_SYNC4, self.state.write_verifier)
@@ -961,10 +972,10 @@ def startup(host, port):
             raise
         server.register()
     except:
-        print "!! unable to register with portmap"
+        logger.warn("!! unable to register with portmap")
         pass
-    print "Python NFSv4 Server, (c) CITI, Regents of the University of Michigan"
-    print "Starting Server, root handle: %s" % rootfh 
+    logger.debug("Python NFSv4 Server, (c) CITI, Regents of the University of Michigan")
+    logger.debug("Starting Server, root handle: %s" % rootfh)
     server.run()
     try:
         server.unregister()
@@ -974,9 +985,29 @@ def startup(host, port):
 if __name__ == "__main__":
     port = 2049
     server = ''
-    if len(sys.argv) > 2:
-        port = int(sys.argv[2])
-    if len(sys.argv) > 1:
-        server = sys.argv[1]
+    debug = False
+
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "",
+                                   ["port=",
+                                    "server=",
+                                    "debug"
+                                    ])
+
+    except getopt.GetoptError, err:
+        print str(err)
+        usage()
+        sys.exit(2)
+    for o, a in opts:
+        if o in ("--port"):
+            port = int(a)
+        elif o in ("--server"):
+            server = a
+        elif o in ("--debug"):
+            debug = True
+
+    if debug:
+        logger.setLevel(logging.INFO)
+        fh.setLevel(logging.INFO)
 
     startup(server, port)
