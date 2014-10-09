@@ -10,8 +10,8 @@ following capabilities.
 5. Compression
 
 Whereever possible we will use python to provide an
-implementation. This may hamper performance and wherever we feel the
-performance is unacceptable to continue we will attempt to provide a
-better implementation using C. Note: The goal of this project is not
+implementation. This may hamper performance and where we feel
+performance to be unacceptable to continue we will attempt to provide
+a better implementation using C. Note: The goal of this project is not
 to provide a blazingly fast storage service but a platform for blazing
 fast prototyping.
