@@ -1336,74 +1336,120 @@ class VirtualHandle(NFSFileHandle):
         return len(data)
 
 class HardHandle(NFSFileHandle):
+
     def __init__(self, filesystem, name, parent, file):
         NFSFileHandle.__init__(self, name, parent)
         self.file = file
-        self.dirent = {}
         self.mtime = 0
         self.fh = self
         self.cookie = 0
 
-        self.state = NFSFileState()
         self.link_filehandle = None
+        self._set_default_attrs()
 
-        self.supported = { FATTR4_SUPPORTED_ATTRS : "r",
-                           FATTR4_TYPE : "r",
-                           FATTR4_FH_EXPIRE_TYPE : "r",
-                           FATTR4_CHANGE : "r",
-                           FATTR4_SIZE : "rw",
-                           FATTR4_LINK_SUPPORT : "r",
-                           FATTR4_SYMLINK_SUPPORT : "r",
-                           FATTR4_NAMED_ATTR : "r",
-                           FATTR4_FSID : "r",
-                           FATTR4_UNIQUE_HANDLES : "r",
-                           FATTR4_LEASE_TIME : "r",
-                           FATTR4_RDATTR_ERROR : "r",
-                           FATTR4_FILEHANDLE : "r",
-                           FATTR4_ACL : "rw",
-                           FATTR4_ACLSUPPORT : "r",
-                           FATTR4_ARCHIVE : "rwn",
-                           FATTR4_CANSETTIME : "rn",
-                           FATTR4_CASE_INSENSITIVE : "r",
-                           FATTR4_CASE_PRESERVING : "r",
-                           FATTR4_CHOWN_RESTRICTED : "rn",
-                           FATTR4_FILEID : "r",
-                           FATTR4_FILES_AVAIL : "rn",
-                           FATTR4_FILES_FREE : "rn",
-                           FATTR4_FILES_TOTAL : "rn",
-                           FATTR4_FS_LOCATIONS : "rn",
-                           FATTR4_HIDDEN : "rwn",
-                           FATTR4_HOMOGENEOUS : "rn",
-                           FATTR4_MAXFILESIZE : "r",
-                           FATTR4_MAXLINK : "rn",
-                           FATTR4_MAXNAME : "r",
-                           FATTR4_MAXREAD : "r",
-                           FATTR4_MAXWRITE : "r",
-                           FATTR4_MIMETYPE : "rwn",
-                           FATTR4_MODE : "rw", # Not supported, but needed as stub
-                           FATTR4_NO_TRUNC : "rn",
-                           FATTR4_NUMLINKS : "r",
-                           FATTR4_OWNER : "rw",
-                           FATTR4_OWNER_GROUP : "rw",
-                           FATTR4_QUOTA_AVAIL_HARD : "rn",
-                           FATTR4_QUOTA_AVAIL_SOFT : "rn",
-                           FATTR4_QUOTA_USED : "rn",
-                           FATTR4_RAWDEV : "r",
-                           FATTR4_SPACE_AVAIL : "rn",
-                           FATTR4_SPACE_FREE : "rn",
-                           FATTR4_SPACE_TOTAL : "rn",
-                           FATTR4_SPACE_USED : "rn",
-                           FATTR4_SYSTEM : "rwn",
-                           FATTR4_TIME_ACCESS : "r",
-                           FATTR4_TIME_ACCESS_SET : "w",
-                           FATTR4_TIME_BACKUP : "rwn",
-                           FATTR4_TIME_CREATE : "rw",
-                           FATTR4_TIME_DELTA : "rn",
-                           FATTR4_TIME_METADATA : "r",
-                           FATTR4_TIME_MODIFY : "r",
-                           FATTR4_TIME_MODIFY_SET : "w",
-                           FATTR4_MOUNTED_ON_FILEID : "rn",
-                           }
+        if self.fattr4_type == NF4DIR:
+            self.dirent = {}
+            self.fattr4_mode = 0755
+        if self.fattr4_type == NF4REG:
+            self.state = NFSFileState()
+
+    supported = { FATTR4_SUPPORTED_ATTRS : "r",
+                  FATTR4_TYPE : "r",
+                  FATTR4_FH_EXPIRE_TYPE : "r",
+                  FATTR4_CHANGE : "r",
+                  FATTR4_SIZE : "rw",
+                  FATTR4_LINK_SUPPORT : "r",
+                  FATTR4_SYMLINK_SUPPORT : "r",
+                  FATTR4_NAMED_ATTR : "r",
+                  FATTR4_FSID : "r",
+                  FATTR4_UNIQUE_HANDLES : "r",
+                  FATTR4_LEASE_TIME : "r",
+                  FATTR4_RDATTR_ERROR : "r",
+                  FATTR4_FILEHANDLE : "r",
+                  FATTR4_ACL : "rw",
+                  FATTR4_ACLSUPPORT : "r",
+                  FATTR4_ARCHIVE : "rwn",
+                  FATTR4_CANSETTIME : "rn",
+                  FATTR4_CASE_INSENSITIVE : "r",
+                  FATTR4_CASE_PRESERVING : "r",
+                  FATTR4_CHOWN_RESTRICTED : "rn",
+                  FATTR4_FILEID : "r",
+                  FATTR4_FILES_AVAIL : "rn",
+                  FATTR4_FILES_FREE : "rn",
+                  FATTR4_FILES_TOTAL : "rn",
+                  FATTR4_FS_LOCATIONS : "rn",
+                  FATTR4_HIDDEN : "rwn",
+                  FATTR4_HOMOGENEOUS : "rn",
+                  FATTR4_MAXFILESIZE : "r",
+                  FATTR4_MAXLINK : "rn",
+                  FATTR4_MAXNAME : "r",
+                  FATTR4_MAXREAD : "r",
+                  FATTR4_MAXWRITE : "r",
+                  FATTR4_MIMETYPE : "rwn",
+                  FATTR4_MODE : "rw", # Not supported, but needed as stub
+                  FATTR4_NO_TRUNC : "rn",
+                  FATTR4_NUMLINKS : "r",
+                  FATTR4_OWNER : "rw",
+                  FATTR4_OWNER_GROUP : "rw",
+                  FATTR4_QUOTA_AVAIL_HARD : "rn",
+                  FATTR4_QUOTA_AVAIL_SOFT : "rn",
+                  FATTR4_QUOTA_USED : "rn",
+                  FATTR4_RAWDEV : "r",
+                  FATTR4_SPACE_AVAIL : "rn",
+                  FATTR4_SPACE_FREE : "rn",
+                  FATTR4_SPACE_TOTAL : "rn",
+                  FATTR4_SPACE_USED : "rn",
+                  FATTR4_SYSTEM : "rwn",
+                  FATTR4_TIME_ACCESS : "r",
+                  FATTR4_TIME_ACCESS_SET : "w",
+                  FATTR4_TIME_BACKUP : "rwn",
+                  FATTR4_TIME_CREATE : "rw",
+                  FATTR4_TIME_DELTA : "rn",
+                  FATTR4_TIME_METADATA : "r",
+                  FATTR4_TIME_MODIFY : "r",
+                  FATTR4_TIME_MODIFY_SET : "w",
+                  FATTR4_MOUNTED_ON_FILEID : "rn",
+                }
+
+    def _set_default_attrs(self):
+        stat_struct = os.lstat(self.file)
+        self.stat_struct = stat_struct
+        if S_ISDIR(stat_struct.st_mode):
+            self.fattr4_type = NF4DIR
+        elif S_ISREG(stat_struct.st_mode):
+            self.fattr4_type = NF4REG
+        elif S_ISLNK(stat_struct.st_mode):
+            self.fattr4_type = NF4LNK
+        self.fattr4_size = stat_struct.st_size
+        self.fattr4_numlinks = stat_struct.st_nlink
+        self.fattr4_supported_attrs = nfs4lib.list2bitmap([x for x in self.supported.keys() if not 'n' in self.supported[x]])
+        self.fattr4_fh_expire_type = FH4_VOLATILE_ANY
+        self.fattr4_change = 0
+        self.fattr4_link_support = True
+        self.fattr4_symlink_support = True
+        self.fattr4_named_attr = False
+        self.fattr4_fsid = fsid4(0x0, 0x0)
+        self.fattr4_unique_handles = False
+        self.fattr4_lease_time = 90 # Seconds
+        self.fattr4_rdattr_error = NFS4_OK
+        self.fattr4_filehandle = str(self.handle)
+        self.fattr4_aclsupport = ACL4_SUPPORT_ALLOW_ACL | ACL4_SUPPORT_DENY_ACL
+        self.fattr4_case_insensitive = False
+        self.fattr4_case_preserving = True
+        self.fattr4_fileid = stat_struct.st_ino
+        self.fattr4_maxfilesize = 2**32  # Are these enforced?
+        self.fattr4_maxname = 128 # Are these enforced?
+        self.fattr4_maxread = 1000 # Are these enforced?
+        self.fattr4_maxwrite = 1000 # Are these enforced?
+        self.fattr4_mode = 0644 # Currently no access restrictions enforced
+        self.fattr4_acl = nfs4acl.mode2acl(self.fattr4_mode,
+                                           self.fattr4_type == NF4DIR)
+        self.fattr4_owner = "nobody@nowhere" # Stub
+        self.fattr4_owner_group = "nobody@nowhere" # Stub
+        self.fattr4_rawdev = specdata4(0,0)
+        now = time.time()
+        self.fattr4_time_access = converttime(now)
+        self.fattr4_time_metadata = converttime(now)
 
     def lookup(self, name):
         """ Assume we are a dir, and see if name is one of our files.
@@ -1414,23 +1460,14 @@ class HardHandle(NFSFileHandle):
         if self.fattr4_type != NF4DIR:
             raise "lookup called on non directory."
         try: 
+            if self.dirent.has_key(name):
+                return self.dirent[name]
             fullfile = os.path.join(self.file, name)
-            if os.path.exists(fullfile):
-                fh = HardHandle(None, name, self, fullfile)
-                stat_struct = os.lstat(self.file)
-                fh.stat_struct = stat_struct
-                if S_ISDIR(stat_struct.st_mode):
-                    fh.fattr4_type = NF4DIR
-                elif S_ISREG(stat_struct.st_mode):
-                    fh.fattr4_type = NF4REG
-                elif S_ISLNK(stat_struct.st_mode):
-                    fh.fattr4_type = NF4LNK
-                fh.fattr4_size = stat_struct.st_size
-                fh.fattr4_numlinks = stat_struct.st_nlink
-                self.dirent[name] = fh
-                return fh
-            else:
+            if not os.path.exists(fullfile):
                 return None
+            fh = HardHandle(None, name, self, fullfile)
+            self.dirent[name] = fh
+            return fh
         except KeyError:
             return None
 
@@ -1486,11 +1523,11 @@ class HardHandle(NFSFileHandle):
             elif attr == FATTR4_FILEID: 
                     ret_dict[attr] = stat_struct.st_ino
             elif attr == FATTR4_MAXFILESIZE:
-                    ret_dict[attr] = 1000000
+                    ret_dict[attr] = 1 << 40
             elif attr == FATTR4_MAXREAD:
-                    ret_dict[attr] = 1000
+                    ret_dict[attr] = 1 << 20
             elif attr == FATTR4_MAXWRITE:
-                    ret_dict[attr] = 1000
+                    ret_dict[attr] = 1 << 20
             elif attr == FATTR4_MODE:
                     ret_dict[attr] = stat_struct.st_mode
             elif attr == FATTR4_NUMLINKS:
@@ -1541,10 +1578,13 @@ class HardHandle(NFSFileHandle):
         raise "is_empty() called on non-dir"
 
     def read(self, offset, count):
-        fh = open(self.file)
-        fh.seek(offset)
-        data = fh.read(count)
-        fh.close()
+        if self.fattr4_type != NF4REG:
+            raise "read called on non file!"
+        fd = os.open(self.file, os.O_RDONLY)
+        os.lseek(fd, offset, os.SEEK_SET)
+        data = os.read(fd, count)
+        os.close(fd)
+        self.fattr4_time_access = converttime()
         return data
 
     def destruct(self):
@@ -1597,9 +1637,10 @@ class HardHandle(NFSFileHandle):
         file = oldfh.dirent[oldname]
         old_filefull = os.path.join(self.file, oldname)
         new_filefull = os.path.join(self.file, newname)
+        shutil.move(old_filefull, new_filefull)
         fh = HardHandle(None, newname, self, new_filefull)
-        file.fattr4_change += 1
-        file.fattr4_time_metadata = converttime()
+        fh.fattr4_change += 1
+        fh.fattr4_time_metadata = converttime()
         self.dirent[newname] = fh
         self.fattr4_size = len(self.dirent)
         self.fattr4_time_modify = converttime()
@@ -1610,7 +1651,6 @@ class HardHandle(NFSFileHandle):
         self.fattr4_size = len(self.dirent)
         self.fattr4_time_modify = converttime()
         self.fattr4_time_metadata = converttime()
-        shutil.move(old_filefull, new_filefull)
 
     def read_dir(self, cookie = 0):
         stat_struct = os.stat(self.file)
@@ -1712,12 +1752,12 @@ class HardHandle(NFSFileHandle):
             raise "create called on non-directory (%s)" % self.ref
         if os.path.exists(fullfile):
             raise "attempted to create already existing file."
-        fh = HardHandle(None, name, self, fullfile)
         if type.type == NF4DIR:
             os.mkdir(fullfile)
         else:
             fd = os.open(fullfile, os.O_CREAT)
             os.close(fd)
+        fh = HardHandle(None, name, self, fullfile)
         if FATTR4_SIZE in attrs and type.type != NF4REG:
             del attrs[FATTR4_SIZE]
         if FATTR4_TIME_MODIFY_SET in attrs:
@@ -1733,20 +1773,17 @@ class HardHandle(NFSFileHandle):
         return attrset
 
     def write(self, offset, data):
-        name = self.file.split("/")[-1]
-        try:
-            fh = self.dirent[name]
-        except KeyError:
-            fh = HardHandle(None, name, self, self.file)
+        if self.fattr4_type != NF4REG:
+            raise "write called on non file!"
+        if len(data) == 0: 
+            return 0
+        self.fattr4_change += 1
         fd = os.open(self.file, os.O_RDWR)
         os.lseek(fd, offset, os.SEEK_SET)
         os.write(fd, data)
         os.close(fd)
-        self.fattr4_change += 1
         self.fattr4_time_metadata = converttime()
-        self.dirent[name] = fh
-        self.fattr4_size = len(self.dirent)
-        self.fattr4_time_modify = converttime()
+        self.fattr4_size += len(data)
         return len(data) 
 
 # This seems to be only used now by O_Readdir...can we get rid of it?
