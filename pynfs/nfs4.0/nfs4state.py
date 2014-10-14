@@ -1523,7 +1523,7 @@ class HardHandle(NFSFileHandle):
             elif attr == FATTR4_FILEID: 
                     ret_dict[attr] = stat_struct.st_ino
             elif attr == FATTR4_MAXFILESIZE:
-                    ret_dict[attr] = 1000000
+                    ret_dict[attr] = 1 << 40
             elif attr == FATTR4_MAXREAD:
                     ret_dict[attr] = 1000
             elif attr == FATTR4_MAXWRITE:
