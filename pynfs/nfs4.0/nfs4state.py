@@ -1346,7 +1346,6 @@ class HardHandle(NFSFileHandle):
 
         self.state = NFSFileState()
         self.link_filehandle = None
-        self.fattr4_numlinks = 0
 
         self.supported = { FATTR4_SUPPORTED_ATTRS : "r",
                            FATTR4_TYPE : "r",
@@ -1405,7 +1404,7 @@ class HardHandle(NFSFileHandle):
                            FATTR4_TIME_MODIFY_SET : "w",
                            FATTR4_MOUNTED_ON_FILEID : "rn",
                            }
-        
+
     def lookup(self, name):
         """ Assume we are a dir, and see if name is one of our files.
 
@@ -1414,9 +1413,26 @@ class HardHandle(NFSFileHandle):
         logger.info(('lookup:%s' % name).center(80, '-'))
         if self.fattr4_type != NF4DIR:
             raise "lookup called on non directory."
-        logger.info(self.file, self.dirent)
-        try: return self.dirent[name]
-        except KeyError: return None
+        try: 
+            fullfile = os.path.join(self.file, name)
+            if os.path.exists(fullfile):
+                fh = HardHandle(None, name, self, fullfile)
+                stat_struct = os.lstat(self.file)
+                fh.stat_struct = stat_struct
+                if S_ISDIR(stat_struct.st_mode):
+                    fh.fattr4_type = NF4DIR
+                elif S_ISREG(stat_struct.st_mode):
+                    fh.fattr4_type = NF4REG
+                elif S_ISLNK(stat_struct.st_mode):
+                    fh.fattr4_type = NF4LNK
+                fh.fattr4_size = stat_struct.st_size
+                fh.fattr4_numlinks = stat_struct.st_nlink
+                self.dirent[name] = fh
+                return fh
+            else:
+                return None
+        except KeyError:
+            return None
 
     def do_lookupp(self):
         return self.parent
@@ -1700,8 +1716,8 @@ class HardHandle(NFSFileHandle):
         if type.type == NF4DIR:
             os.mkdir(fullfile)
         else:
-            fd = open(fullfile, 'w')
-            fd.close()
+            fd = os.open(fullfile, os.O_CREAT)
+            os.close(fd)
         if FATTR4_SIZE in attrs and type.type != NF4REG:
             del attrs[FATTR4_SIZE]
         if FATTR4_TIME_MODIFY_SET in attrs:
@@ -1717,10 +1733,20 @@ class HardHandle(NFSFileHandle):
         return attrset
 
     def write(self, offset, data):
-        fh = open(self.file, 'r+')
-        fh.seek(offset)
-        fh.write(data)
-        fh.close()
+        name = self.file.split("/")[-1]
+        try:
+            fh = self.dirent[name]
+        except KeyError:
+            fh = HardHandle(None, name, self, self.file)
+        fd = os.open(self.file, os.O_RDWR)
+        os.lseek(fd, offset, os.SEEK_SET)
+        os.write(fd, data)
+        os.close(fd)
+        self.fattr4_change += 1
+        self.fattr4_time_metadata = converttime()
+        self.dirent[name] = fh
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
         return len(data) 
 
 # This seems to be only used now by O_Readdir...can we get rid of it?

@@ -235,7 +235,7 @@ class NFS4Server(rpc.RPCServer):
             # Note must cache response, so need to call raise instead of return
             if not self.curr_fh:
                 raise NFS4Error(NFS4ERR_NOFILEHANDLE)
-            logger.info("  CLOSE fh", self.curr_fh.handle)
+            logger.info("  CLOSE fh %s" % self.curr_fh.handle)
             self.state.close(stateid)
         except NFS4Error, e:
             self.state.advance_seqid(stateid, op, (e.code,))
@@ -535,7 +535,6 @@ class NFS4Server(rpc.RPCServer):
             sid, flags = self.state.open(existing, owner,
                                   op.opopen.share_access, op.opopen.share_deny)
         except NFS4Error, e:
-            logger.info("Open error")
             self.state.advance_seqid(owner, op, (e.code,))
             return simple_error(e.code)
         ci_new = self.curr_fh.fattr4_change
