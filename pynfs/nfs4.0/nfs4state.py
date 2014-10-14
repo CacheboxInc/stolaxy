@@ -1525,9 +1525,9 @@ class HardHandle(NFSFileHandle):
             elif attr == FATTR4_MAXFILESIZE:
                     ret_dict[attr] = 1 << 40
             elif attr == FATTR4_MAXREAD:
-                    ret_dict[attr] = 1000
+                    ret_dict[attr] = 1 << 20
             elif attr == FATTR4_MAXWRITE:
-                    ret_dict[attr] = 1000
+                    ret_dict[attr] = 1 << 20
             elif attr == FATTR4_MODE:
                     ret_dict[attr] = stat_struct.st_mode
             elif attr == FATTR4_NUMLINKS:
