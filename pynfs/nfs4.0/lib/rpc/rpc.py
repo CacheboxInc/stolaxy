@@ -578,7 +578,7 @@ class RPCServer(Server):
                             self.recordbufs[fd].append(reply)
                             self.p.register(fd, _bothmask)
 
-    def event_write(self, fd, chunksize=2048, debug=0):
+    def event_write(self, fd, chunksize=1<<20, debug=0):
         if debug: print "SERVER: In write event for %i" % fd
         if self.writebufs[fd]:
             if debug: print "  writing from writebuf"
