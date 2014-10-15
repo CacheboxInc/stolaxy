@@ -1,5 +1,7 @@
 from nfs4_const import *
 from nfs4_type import *
+from config import *
+
 import nfs4_pack
 import rpc.rpc
 import nfs4acl
@@ -887,7 +889,7 @@ class NFSFileState:
         
 #########################################################################
 
-class NFSFileHandle:
+class NFSFileHandle(object):
     # name = the external NFS4 name
     # file = the real, local file
     # parent = the parent directory, None if root.
@@ -940,7 +942,19 @@ class NFSFileHandle:
     def remove(self, target):
         raise "implement remove"
 
+def handle(*args):
+    """
+    implements class factory
+    """
+    if htype == 'VIRTUAL_HANDLE':
+        return VirtualHandle(*args)
+    elif htype == 'HARD_HANDLE':
+        return HardHandle(*args)
+    elif htype == 'NULL_HANDLE':
+        return NULLHandle(*args)
 
+    assert 0, 'unknown htype: %s' % htype
+    
 class VirtualHandle(NFSFileHandle):
     def __init__(self, name="/", type=None, parent=None):
         NFSFileHandle.__init__(self, name, parent)
@@ -1021,7 +1035,7 @@ class VirtualHandle(NFSFileHandle):
             raise "create called on non-directory (%s)" % self.ref
         if self.dirent.has_key(name):
             raise "attempted to create already existing file."
-        fh = VirtualHandle(name, type, self)
+        fh = handle(name, type, self)
         if FATTR4_SIZE in attrs and type.type != NF4REG:
             del attrs[FATTR4_SIZE]
         if FATTR4_TIME_MODIFY_SET in attrs:
@@ -1465,7 +1479,7 @@ class HardHandle(NFSFileHandle):
             fullfile = os.path.join(self.file, name)
             if not os.path.exists(fullfile):
                 return None
-            fh = HardHandle(None, name, self, fullfile)
+            fh = handle(None, name, self, fullfile)
             self.dirent[name] = fh
             return fh
         except KeyError:
@@ -1638,7 +1652,7 @@ class HardHandle(NFSFileHandle):
         old_filefull = os.path.join(self.file, oldname)
         new_filefull = os.path.join(self.file, newname)
         shutil.move(old_filefull, new_filefull)
-        fh = HardHandle(None, newname, self, new_filefull)
+        fh = handle(None, newname, self, new_filefull)
         fh.fattr4_change += 1
         fh.fattr4_time_metadata = converttime()
         self.dirent[newname] = fh
@@ -1662,7 +1676,7 @@ class HardHandle(NFSFileHandle):
         for i in os.listdir(self.file):
             fullfile = os.path.join(self.file, i)
             if not self.dirent.has_key(i):
-                self.dirent[i] = HardHandle(None, i, self, fullfile)
+                self.dirent[i] = handle(None, i, self, fullfile)
             else:
                 self.oldfiles.remove(i)
         for i in self.oldfiles:
@@ -1757,7 +1771,7 @@ class HardHandle(NFSFileHandle):
         else:
             fd = os.open(fullfile, os.O_CREAT)
             os.close(fd)
-        fh = HardHandle(None, name, self, fullfile)
+        fh = handle(None, name, self, fullfile)
         if FATTR4_SIZE in attrs and type.type != NF4REG:
             del attrs[FATTR4_SIZE]
         if FATTR4_TIME_MODIFY_SET in attrs:
@@ -1785,6 +1799,24 @@ class HardHandle(NFSFileHandle):
         self.fattr4_time_metadata = converttime()
         self.fattr4_size += len(data)
         return len(data) 
+
+class NULLHandle(HardHandle):
+    def read(self, offset, count):
+        if self.fattr4_type != NF4REG:
+            raise "read called on non file!"
+
+        fd = os.open("/dev/zero", os.O_RDONLY)
+        data = os.read(fd, count)
+        os.close(fd)
+        return data
+
+    def write(self, offset, data):
+        if self.fattr4_type != NF4REG:
+            raise "write called on non file!"
+        return len(data)
+
+
+    
 
 # This seems to be only used now by O_Readdir...can we get rid of it?
 ## class NFSClientHandle:

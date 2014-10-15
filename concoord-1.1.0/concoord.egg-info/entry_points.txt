@@ -1,0 +1,4 @@
+[console_scripts]
+openreplica = concoord.openreplica.main:main
+concoord = concoord.main:main
+

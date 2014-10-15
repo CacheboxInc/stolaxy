@@ -28,6 +28,7 @@ if  __name__ == "__main__":
 import datetime
 import getopt
 import logging
+from config import *
 from nfs4_const import *
 from nfs4_type import *
 import nfs4_pack
@@ -961,9 +962,16 @@ class NFS4Server(rpc.RPCServer):
     def op_illegal(self, op):
         return simple_error(NFS4ERR_OP_ILLEGAL)
 
-def startup(host, port):
-    rootfh = nfs4state.VirtualHandle()
-    rootfh = nfs4state.HardHandle(None, "/", None, "/tmp")
+def startup(host, port, directory):
+    if htype == 'VIRTUAL_HANDLE':
+        rootfh = nfs4state.VirtualHandle()
+    elif htype == 'HARD_HANDLE':
+        rootfh = nfs4state.HardHandle(None, "/", None, directory)
+    elif htype == 'NULL_HANDLE':
+        rootfh = nfs4state.NULLHandle(None, "/", None, directory)
+    else:
+        assert 0, "unknown htype"
+
     server = NFS4Server(rootfh, port=port, host=host, pubfh=rootfh)
     try:
         import rpc.portmap as portmap
@@ -985,12 +993,14 @@ if __name__ == "__main__":
     port = 2049
     server = ''
     debug = False
+    directory = "/tmp/"
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "",
                                    ["port=",
                                     "server=",
-                                    "debug"
+                                    "debug",
+                                    "export=",
                                     ])
 
     except getopt.GetoptError, err:
@@ -1004,9 +1014,11 @@ if __name__ == "__main__":
             server = a
         elif o in ("--debug"):
             debug = True
+        elif o in ("--export"):
+            directory = a
 
     if debug:
         logger.setLevel(logging.INFO)
         fh.setLevel(logging.INFO)
 
-    startup(server, port)
+    startup(server, port, directory)

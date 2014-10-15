@@ -1,0 +1,26 @@
+Storage Galaxy (stolaxy)
+
+INTRODUCTION
+
+stolaxy is an attempt to put together a quick storage appliance with
+the following capabilities.
+
+1. NFS Server
+2. Distributed datastore (replicated)
+3. Tiering
+4. Deduplication
+5. Compression
+6. Snapshots
+
+Whereever possible we will use python to provide an
+implementation. This may hamper performance and where we feel
+performance to be unacceptable to continue we will attempt to provide
+a better implementation using C. Note: The goal of this project is not
+to provide a blazingly fast storage service but a platform for blazing
+fast prototyping.
+
+HOW TO USE THIS PROJECT
+
+1. NFS Server: the nfs server can be started as follows: 
+
+python pynfs/nfs4.0/nfs4server.py
