@@ -1792,7 +1792,12 @@ class HardHandle(NFSFileHandle):
         if len(data) == 0: 
             return 0
         self.fattr4_change += 1
-        fd = os.open(self.file, os.O_RDWR)
+
+        mode = os.O_RDWR
+        if self.fattr4_size == 0:
+            mode = os.O_RDWR|os.O_TRUNC
+
+        fd = os.open(self.file, mode)
         os.lseek(fd, offset, os.SEEK_SET)
         os.write(fd, data)
         os.close(fd)
