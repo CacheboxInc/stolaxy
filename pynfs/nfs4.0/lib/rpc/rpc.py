@@ -469,6 +469,7 @@ class Server(object):
         self.p = select.poll()
         self.p.register(self.s, _readmask)
         self.name = name
+        self.recv_size = 1 << 20
 
     def run(self, debug=0):
         while 1:
@@ -496,7 +497,7 @@ class Server(object):
                         if fd == self.s.fileno():
                             self.event_connect(fd)
                         else:
-                            data = self.sockets[fd].recv(4096)
+                            data = self.sockets[fd].recv(self.recv_size)
                             if data:
                                 self.event_read(fd, data)
                             else:
