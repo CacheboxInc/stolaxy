@@ -1725,9 +1725,8 @@ class HardHandle(NFSFileHandle):
 
     def set_fattr4_size(self, newsize):
         # FRED - How should this behave on non REG files? especially a DIR?
-        if self.fattr4_type == NF4REG and (newsize != self.fattr4_size or \
-             newsize == self.fattr4_size == 0):
-            if newsize <= self.fattr4_size: 
+        if self.fattr4_type == NF4REG and (newsize != self.fattr4_size or newsize == 0):
+            if newsize <= self.fattr4_size:
                 fd = open(self.file, "a+")
                 fd.truncate(newsize)
                 fd.close()
