@@ -1,6 +1,7 @@
 from nfs4_const import *
 from nfs4_type import *
 from config import *
+from ctypes import *
 
 import nfs4_pack
 import rpc.rpc
@@ -18,6 +19,9 @@ from stat import *
 import sha
 import shutil
 logger = logging.getLogger('nfslog')
+
+cdll.LoadLibrary("libc.so.6")
+libc = CDLL("libc.so.6")
 
 inodecount = 0
 generationcount = 0
@@ -1595,8 +1599,8 @@ class HardHandle(NFSFileHandle):
         if self.fattr4_type != NF4REG:
             raise "read called on non file!"
         fd = os.open(self.file, os.O_RDONLY)
-        os.lseek(fd, offset, os.SEEK_SET)
-        data = os.read(fd, count)
+        data = create_string_buffer(count)
+        size = libc.pread(fd, data, count, offset)
         os.close(fd)
         self.fattr4_time_access = converttime()
         return data
@@ -1721,13 +1725,17 @@ class HardHandle(NFSFileHandle):
 
     def set_fattr4_size(self, newsize):
         # FRED - How should this behave on non REG files? especially a DIR?
-        if self.fattr4_type == NF4REG and newsize != self.fattr4_size:
-            if newsize < self.fattr4_size:
-                self.file.truncate(newsize)
+        if self.fattr4_type == NF4REG and (newsize != self.fattr4_size or newsize == 0):
+            if newsize < self.fattr4_size or newsize == 0:
+                fd = open(self.file, "a+")
+                fd.truncate(newsize)
+                fd.close()
             else:
                 # Pad with zeroes
-                self.file.seek(0, 2)
-                self.file.write(chr(0) * (newsize-self.fattr4_size))
+                fd = os.open(self.file, os.O_RDWR)
+                size = newsize - self.fattr4_size
+                sz = libc.pwrite(fd, chr(0) * size, size, self.fattr4_size)
+                os.close(fd)
             self.fattr4_size = newsize
             self.fattr4_time_modify = converttime()
         else:
@@ -1793,16 +1801,11 @@ class HardHandle(NFSFileHandle):
             return 0
         self.fattr4_change += 1
 
-        mode = os.O_RDWR
-        if self.fattr4_size == 0:
-            mode = os.O_RDWR|os.O_TRUNC
-
-        fd = os.open(self.file, mode)
-        os.lseek(fd, offset, os.SEEK_SET)
-        os.write(fd, data)
+        fd = os.open(self.file, os.O_RDWR)
+        size = libc.pwrite(fd, data, len(data), offset)
         os.close(fd)
         self.fattr4_time_metadata = converttime()
-        self.fattr4_size += len(data)
+        self.fattr4_size += size
         return len(data) 
 
 class NULLHandle(HardHandle):
