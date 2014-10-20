@@ -19,6 +19,7 @@ import sys
 if sys.hexversion < 0x02030000:
     print "Requires python 2.3 or higher"
     sys.exit(1)
+
 import os
 # Allow to be run stright from package root
 if  __name__ == "__main__":
@@ -36,9 +37,19 @@ import rpc.rpc as rpc
 import nfs4lib
 import time, StringIO, random, traceback, codecs
 import StringIO
+import signal
 import nfs4state
 from nfs4state import NFS4Error, printverf
 from xdrlib import Error as XDRError
+
+from args import args, parser
+
+sys.path.insert(0, '../../concoord-1.1.0/')
+
+import concoord
+from concoord.enums import *
+from concoord.safetychecker import *
+from concoord.proxygenerator import *
 
 unacceptable_names = [ "", ".", ".." ]
 unacceptable_characters = [ "/", "~", "#", ]
@@ -969,6 +980,8 @@ def startup(host, port, directory):
         rootfh = nfs4state.HardHandle(None, "/", None, directory)
     elif htype == 'NULL_HANDLE':
         rootfh = nfs4state.NULLHandle(None, "/", None, directory)
+    elif htype == 'REPLICA_HANDLE':
+        rootfh = nfs4state.ReplicaHandle(None, "/", None, directory)
     else:
         assert 0, "unknown htype"
 
@@ -983,6 +996,14 @@ def startup(host, port, directory):
         pass
     logger.debug("Python NFSv4 Server, (c) CITI, Regents of the University of Michigan")
     logger.debug("Starting Server, root handle: %s" % rootfh)
+
+    if args.addr:
+        node = getattr(
+            __import__('concoord.replica', globals(), locals(), -1), 'Replica')()
+        node.startservice()
+        signal.signal(signal.SIGINT, node.terminate_handler)
+        signal.signal(signal.SIGTERM, node.terminate_handler)
+        #signal.pause()
     server.run()
     try:
         server.unregister()
@@ -995,27 +1016,8 @@ if __name__ == "__main__":
     debug = False
     directory = "/tmp/"
 
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "",
-                                   ["port=",
-                                    "server=",
-                                    "debug",
-                                    "export=",
-                                    ])
-
-    except getopt.GetoptError, err:
-        print str(err)
-        usage()
-        sys.exit(2)
-    for o, a in opts:
-        if o in ("--port"):
-            port = int(a)
-        elif o in ("--server"):
-            server = a
-        elif o in ("--debug"):
-            debug = True
-        elif o in ("--export"):
-            directory = a
+    debug = args.debug
+    directory = args.export
 
     if debug:
         logger.setLevel(logging.INFO)
