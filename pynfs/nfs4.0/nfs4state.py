@@ -1861,6 +1861,20 @@ class ReplicaHandle(HardHandle):
         self.fattr4_time_modify = converttime()
         return attrset
 
+    def write(self, offset, data):
+        if self.fattr4_type != NF4REG:
+            raise "write called on non file!"
+        if len(data) == 0: 
+            return 0
+
+        self.fattr4_change += 1
+
+        rnfs = NFSHandle("%s:%s" % (sargs.addr, sargs.port))
+        size = rnfs.write(self.file, data, offset)
+        self.fattr4_time_metadata = converttime()
+        self.fattr4_size += size
+        return len(data) 
+
 class DirList:
     def __init__(self):
         self.verifier = packnumber(int(time.time()))
