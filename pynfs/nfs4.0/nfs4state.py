@@ -20,6 +20,9 @@ import sha
 import shutil
 logger = logging.getLogger('nfslog')
 
+from args import args as sargs
+from nfshandleproxy import NFSHandle
+
 cdll.LoadLibrary("libc.so.6")
 libc = CDLL("libc.so.6")
 
@@ -956,6 +959,8 @@ def handle(*args):
         return HardHandle(*args)
     elif htype == 'NULL_HANDLE':
         return NULLHandle(*args)
+    elif htype == 'REPLICA_HANDLE':
+        return ReplicaHandle(*args)
 
     assert 0, 'unknown htype: %s' % htype
     
@@ -1824,27 +1829,37 @@ class NULLHandle(HardHandle):
         return len(data)
 
 
-    
+class ReplicaHandle(HardHandle):
+    def create(self, name, type, attrs={}):
+        """ Create a file of given type with given attrs, return attrs set
 
-# This seems to be only used now by O_Readdir...can we get rid of it?
-## class NFSClientHandle:
-##     def __init__(self):
-##         self.confirmed = 0
-##         self.dirlist = {}
-##         self.iterlist = {}
-##         self.verfnum = 0
-##         self.lock_owner = None
-##         self.clientid = None
-
-##     def confirm(self):
-##         self.confirmed = 1
-
-##     def nextverf(self):
-##         """Return a verifier not previously seen by client"""
-##         self.verfnum += 1
-##         return packnumber(self.verfnum)
-
-#####################################################################
+        type is a nfs4types.createtype4 instance
+        """
+        # Must make sure that if it fails, nothing is changed
+        fullfile = os.path.join(self.file, name)
+        if self.fattr4_type != NF4DIR:
+            raise "create called on non-directory (%s)" % self.ref
+        if os.path.exists(fullfile):
+            raise "attempted to create already existing file."
+        rnfs = NFSHandle("%s:%s" % (sargs.addr, sargs.port))
+        if type.type == NF4DIR:
+            rnfs.mkdir(fullfile)
+        else:
+            rnfs.create(fullfile)
+        fh = handle(None, name, self, fullfile)
+        if FATTR4_SIZE in attrs and type.type != NF4REG:
+            del attrs[FATTR4_SIZE]
+        if FATTR4_TIME_MODIFY_SET in attrs:
+            del attrs[FATTR4_TIME_MODIFY_SET]
+        if FATTR4_TIME_ACCESS_SET in attrs:
+            del attrs[FATTR4_TIME_ACCESS_SET]
+        self.fattr4_change += 1
+        self.fattr4_time_metadata = converttime()
+        attrset = fh.set_attributes(attrs)
+        self.dirent[name] = fh
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
+        return attrset
 
 class DirList:
     def __init__(self):
