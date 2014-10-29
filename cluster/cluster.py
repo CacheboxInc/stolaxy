@@ -145,6 +145,5 @@ class InterfaceAgent(object):
         now = time.time()
         for peer in list(self.peers.values()):
             if peer.expires_at < now:
-#                print("reaping %s" % peer.uuid, peer.expires_at, now, peer.address, peer.port)
                 peer = self.peers.pop(peer.uuid)
                 self.pipe.send_multipart([b'LEFT', peer.uuid, peer.address, str(peer.port)])
