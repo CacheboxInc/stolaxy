@@ -1,0 +1,125 @@
+# see: http://ramcloud.stanford.edu/raft.pdf
+
+from config import *
+
+class Server(object):
+    def __init__(self, serverId):
+        self.serverId = serverId
+        self.state = FOLLOWER
+        self.electiontimeout = ELECTION_TIMEOUT
+
+    def beginRequestVote(self):
+        pass
+
+    def beginLeadership(self):
+        pass
+
+    def init(self):
+        pass
+
+    def exit(self):
+        pass
+
+    def getLastAckEpoch(self):
+        pass
+
+    def getLastAgreeIndex(self):
+        pass
+    
+    def haveVote(self):
+        pass
+
+    def interrupt(self):
+        pass
+
+    def isCaughtUp(self):
+        pass
+
+    def scheduleHeartbeat(self):
+        pass
+
+
+class LocalServer(Server):
+    def __init__(self, serverId, consensus):
+        Server.__init__(self, serverId)
+        self.lastSyncedIndex = 0
+        self.consensus = consensus
+
+    def beginRequestVote(self):
+        pass
+
+    def beginLeadership(self):
+        self.lastSyncedIndex = self.consensus.log.getLastLogIndex()
+
+    def exit(self):
+        pass
+
+    def getLastAckEpoch(self):
+        return self.consensus.currentEpoch
+
+    def getLastAgreeIndex(self):
+        return self.lastSyncedIndex
+
+    def isCaughtUp(self):
+        return True
+
+    def haveVote(self):
+        return self.consensus.votedFor == self.serverId
+
+class Peer(Server):
+    def __init__(self, serverId, consensus):
+        Server.__init__(self, serverId)
+        self.consensus = consensus
+        self.exiting = False
+        self.requestVoteDone = False
+        self.forceHeartBeat = False
+        self.nextIndex = consensus.log.getLastLogIndex() + 1
+        self.lastAgreeIndex = 0
+        self.lastAckEpoch = 0
+        self.nextHeartBeatTime = datetime.datetime.min
+        self.backoffUntil = datetime.datetime.min
+        self.thread = None
+        self.haveVote_ = False
+        self.isCaughtUp_ = False
+        self.lastSnapshotIndex = 0
+
+    def callRPC(self):
+        pass
+
+    def startThread(self):
+        self.thisCatchUpIterationStart = datetime.datetime.now()
+        self.thisCatchUpIterationGoalId = self.consensus.log.getLastLogIndex()
+        self.consensus.numPeerThreads += 1
+        thread = threading.Thread(target = self.consensus.peerThreadMain, kwargs = {'peer':self})
+        thread.start()
+
+    def beginRequestVote(self):
+        self.requestVoteDone = False
+        self.haveVote_ = False
+
+    def haveVote(self):
+        return self.haveVote_
+        
+
+    def beginLeadership(self):
+        self.nextIndex = self.consensus.log.getLastLogIndex() + 1
+        self.lastAgreeIndex = 0
+        self.forceHeartbeat = True
+        self.snapshotFile.reset()
+        self.snapshotFileOffset = 0
+        self.lastSnapshotIndex = 0
+
+    def exit(self):
+        self.exiting = True
+
+    def getLastAckEpoch():
+        return self.lastAckEpoch
+
+    def getLastAgreeIndex(self):
+        return self.lastAgreeIndex
+
+    def isCaughtUp(self):
+        return self.isCaughtUp_
+
+    def scheduleHeartbeat(self):
+        self.nextHeartbeatTime = datetime.datetime.now()
