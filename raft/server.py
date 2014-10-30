@@ -71,7 +71,7 @@ class LocalServer(Server):
         return self.consensus.votedFor == self.serverId
 
 class Peer(Server):
-    def __init__(self, serverId, consensus):
+    def __init__(self, serverId, address, consensus):
         Server.__init__(self, serverId)
         self.consensus = consensus
         self.exiting = False
@@ -86,15 +86,17 @@ class Peer(Server):
         self.haveVote_ = False
         self.isCaughtUp_ = False
         self.lastSnapshotIndex = 0
+        self.address = address
 
-        requester = self.zctx.socket(zmq.DEALER)
-        requester.connect('tcp://%s:%s' % (self.address, 9998))
+        requester = consensus.zctx.socket(zmq.DEALER)
+        requester.connect('tcp://%s:5556' % (self.address))
+        self.requester = requester
 
         # the raft leader sends requests to raft peers
 
     def callRPC(self, opcode, request):
-        print 'implement callRPC'
-        pass
+        response = self.requester.send(request.SerializeToString())
+        return response
 
     def startThread(self):
         self.thisCatchUpIterationStart = datetime.datetime.now()

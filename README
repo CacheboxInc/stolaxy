@@ -38,3 +38,9 @@ this is on the first node, the remaining nodes should pass a -b
 <IPADDRESS:14000> of the master node from where to bootstrap. this is
 ugly for now but needs to be fixed.
 
+DEPENDENCIES
+
+1. install latest stable version of zeromq (you can download and build it)
+2. pip install pyzmq
+3. apt-get install python-protobuf
+4. apt-get install cython # for caio bindings

@@ -108,7 +108,7 @@ class Configuration(object):
         assert self.state == STABLE
         self.state = STAGING
         for address, port, serverId in stagingServers:
-            server = self.getServer(serverId)
+            server = self.getServer(serverId, address)
             server.address = address
             self.newServers.servers.append(server)
 
@@ -128,12 +128,12 @@ class Configuration(object):
         self.newServers.servers = []
         
         for s in self.description.prev_configuration.servers:
-            server = self.getServer(s.id)
+            server = self.getServer(s.id, s.address)
             server.address = s.address
             self.oldServers.servers.append(server)
 
         for s in self.description.next_configuration.servers:
-            server = self.getServer(s.id)
+            server = self.getServer(s.id, s.address)
             server.address = s.address
             self.oldServers.servers.append(server)
 
@@ -151,11 +151,11 @@ class Configuration(object):
 
         return 0
 
-    def getServer(self, newServerId):
+    def getServer(self, newServerId, address):
         if self.knownServers.has_key(newServerId):
             return self.knownServers[newServerId]
 
-        peer = Peer(newServerId, self.consensus)
+        peer = Peer(newServerId, address, self.consensus)
         peer.startThread()
         self.knownServers[newServerId] = peer
         return peer

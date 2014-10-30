@@ -58,6 +58,11 @@ class RaftConsensus(Consensus):
         self.configuration = XConfiguration(serverId, self)
         self.configurationManager = ConfigurationManager(self.configuration)
         self.zctx = zmq.Context()
+        rpchandler = self.zctx.socket(zmq.DEALER)
+        rpchandler.bind('tcp://%s:5556' % serverAddress)
+        self.rpchandler = rpchandler
+        t = threading.Thread(target = self.rpcHandlerThread)
+        t.start()
 
     def init(self, serverId):
         self.mutex.acquire()
@@ -121,12 +126,14 @@ class RaftConsensus(Consensus):
         pass
 
     def handleAppendEntries(self):
+        assert 0
         pass
 
     def handleAppendSnapshotChunk(self):
         pass
 
     def handleRequestVote(self):
+        assert 0
         pass
 
     def replicate(self):
@@ -287,6 +294,14 @@ class RaftConsensus(Consensus):
     def stepDownThreadMain(self):
         pass
 
+    def rpcHandlerThread(self):
+        handler = self.rpchandler
+        while True:
+            message = handler.recv()
+            entry = Entry()
+            entry.ParseFromString(message)
+            print 'message received'
+        
     def advanceCommittedId(self):
         pass
 
