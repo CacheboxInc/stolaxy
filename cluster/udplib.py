@@ -9,7 +9,7 @@ class UDP(object):
     address = ''    # Own address
     broadcast = ''  # Broadcast address
 
-    def __init__(self, port, name, address=None, broadcast=None):
+    def __init__(self, port, name, serverId, address=None, broadcast=None):
         if address is None:
             local_addrs = socket.gethostbyname_ex(socket.gethostname())[-1]
             for addr in local_addrs:
@@ -22,6 +22,7 @@ class UDP(object):
         self.broadcast = broadcast
         self.port = port
         self.name = name
+        self.serverId = serverId
         # Create UDP socket
         self.handle = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 
@@ -32,11 +33,12 @@ class UDP(object):
         self.handle.bind(('', port))
 
     def send(self, buf, name):
-        data = '%s,%s' % (buf, name)
+        data = '%s,%s,%s' % (buf, name, self.serverId)
         self.handle.sendto(data, 0, (self.broadcast, self.port))
 
     def recv(self, n):
         buf, addrinfo = self.handle.recvfrom(n)
         uid = buf.split(',')[0]
         name = buf.split(',')[1]
-        return (uid, name, addrinfo[0], addrinfo[1])
+        serverId = buf.split(',')[2]
+        return (uid, name, serverId, addrinfo[0], addrinfo[1])

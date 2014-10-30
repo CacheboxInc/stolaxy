@@ -1,10 +1,12 @@
 import datetime
 import random
 import threading
+import zmq
 
 from config import *
 from configuration import SimpleConfiguration
 from configuration import Configuration as XConfiguration
+from configuration import ConfigurationManager
 from consensus import Consensus
 from memorylog import MemoryLog
 from Raft_pb2 import *
@@ -14,10 +16,25 @@ FAIL = 1
 RETRY = 2
 NOT_LEADER = 3
 
+class MyMutex(object):
+    def __init__(self):
+        self.mutex = threading.Lock()
+
+    def acquire(self, blocking = True):
+        print 'acquiring mutex'
+        self.mutex.acquire(blocking)
+        print 'mutex acquired'
+
+    def release(self):
+        print 'releasing mutex'
+        self.mutex.release()
+        print ' mutex released'
+
 class RaftConsensus(Consensus):
     def __init__(self, serverId, serverAddress):
         Consensus.__init__(self, serverId, serverAddress)
         self.mutex = threading.Lock()
+#        self.mutex = MyMutex()
         self.stateChanged = threading.Condition(self.mutex)
         self.exiting = False
         self.numPeerThreads = 0
@@ -30,20 +47,21 @@ class RaftConsensus(Consensus):
         self.commitIndex = 0
         self.leaderId = 0
         self.votedFor = 0
-        self.currentEpoch = None
+        self.currentEpoch = 0
         self.startElectionAt = datetime.datetime.max
-        self.withholdVotesUntil = None
+        self.withholdVotesUntil = datetime.datetime.min
         self.leaderDiskThreadWorking = False
         self.logSyncQueued = False
         self.leaderDiskThread = None
         self.timerThread = None
         self.stepDownThread = None
+        self.configuration = XConfiguration(serverId, self)
+        self.configurationManager = ConfigurationManager(self.configuration)
+        self.zctx = zmq.Context()
 
     def init(self, serverId):
         self.mutex.acquire()
         self.serverId = serverId
-        print "my server id is %d\n" % serverId
-        self.configuration = XConfiguration(serverId, self)
         log = MemoryLog()
         entryId = log.getLogStartIndex()
         while entryId <= log.getLastLogIndex():
@@ -114,9 +132,80 @@ class RaftConsensus(Consensus):
     def replicate(self):
         pass
 
-    def setConfiguration(self):
-        pass
+    def setConfiguration(self, oldId, members):
+        print 'setConfiguration'.center(80, '#')
+        print 'changing raft configuration to: %s' % members
+        self.mutex.acquire()
+        
+        nextConfiguration = SimpleConfiguration()
+        for address, port, serverId in members:
+            server = Server()
+            server.server_id = int(serverId)
+            server.address = address
+            nextConfiguration.servers.extend([server])
 
+        print self.state
+
+        if self.state != LEADER:
+            print 'setConfiguration.NOT LEADER'
+            self.mutex.release()
+            return False
+
+#        if self.configuration.id != oldId or self.configuration.state != STABLE:
+        if self.configuration.state != STABLE:
+            print 'setConfiguration. config changed!'
+            print self.configuration.state, STABLE
+            self.mutex.release()
+            return False
+
+        term = self.currentTerm
+        self.configuration.setStagingServers(members)
+        self.stateChanged.notifyAll()
+        self.currentEpoch += 1
+        epoch = self.currentEpoch
+        checkProgressAt = datetime.datetime.now() + datetime.timedelta(seconds = ELECTION_TIMEOUT_SECONDS)
+
+        while True:
+            if self.exiting or term != self.currentTerm:
+                print 'setConfiguration. term or exiting'
+                self.mutex.release()
+                return False
+
+            if self.configuration.stagingAll('isCaughtUp'):
+                break
+
+            if datetime.datetime.now() >= checkProgressAt:
+                if self.configuration.stagingMin('getLastAckEpoch') < epoch:
+                    self.configuration.resetStagingServers()
+                    self.stateChanged.notifyAll()
+                    print 'setConfiguration epoch!'
+                    self.mutex.release()
+                    return False
+
+                else:
+                    self.currentEpoch += 1
+                    epoch = self.currentEpoch
+                    checkProgressAt = datetime.datetime.now() + datetime.timedelta(seconds = ELECTION_TIMEOUT_SECONDS)
+                    
+            self.stateChanged.wait(ELECTION_TIMEOUT_SECONDS)
+        
+        newConfiguration = Configuration()
+        newConfiguration.prev_configuration = self.configuration.description.prev_configuration
+        newConfiguration.next_configuration = nextConfiguration
+
+        entry = Entry()
+        entry.type = CONFIGURATION
+        entry.configuration = newConfiguration
+        result = self.replicateEntry(entry)
+
+        if result != True:
+            print 'setConfiguration: replicate entry!'
+            self.mutex.release()
+            return False
+        
+        self.mutex.release()
+        return True
+        
     def beginSnapshot(self):
         pass
 
@@ -155,18 +244,16 @@ class RaftConsensus(Consensus):
                 self.startNewElection()
             else:
                 wait = (self.startElectionAt - datetime.datetime.now()).seconds
-#                print 'election: waiting for %d seconds' % wait
                 self.stateChanged.wait(wait)
         pass
 
     def peerThreadMain(self, peer):
         self.mutex.acquire()
-        print 'peerThreadmain'
-        
+
         while not peer.exiting:
             now = datetime.datetime.now()
             waitUntil = datetime.datetime.min
-            
+
             if peer.backoffUntil > now:
                 waitUntil = peer.backoffUntil
             else:
@@ -183,7 +270,14 @@ class RaftConsensus(Consensus):
                     else:
                         waitUntil = peer.nextHeartbeatTime
                 
-            self.stateChanged.wait(waitUntil)
+            if datetime.datetime.now() > waitUntil:
+                #delta = (datetime.datetime.now() - waitUntil).seconds
+                delta = 2
+            else:
+                delta = (waitUntil - datetime.datetime.now()).seconds
+
+            print 'peerThread (%s): sleeping for %s seconds' % (peer.address, delta)
+            self.stateChanged.wait(delta)
 
         self.numPeerThreads -= 1
         self.stateChanged.notifyAll()
@@ -203,7 +297,7 @@ class RaftConsensus(Consensus):
         for entry in entries:
             assert entry.term != 0
 
-        self.log.append(entries)
+        first, last = self.log.append(entries)
 
         if self.state == LEADER:
             self.logSyncQueued = True
@@ -212,19 +306,56 @@ class RaftConsensus(Consensus):
             sync.wait()
             self.log.syncComplete()
 
+        index = first
         for entry in entries:
             if entry.type == CONFIGURATION:
-#                configurationManager.add()
+                self.configurationManager.add(index, entry.configuration)
                 pass
-
+            index += 1
 
         self.stateChanged.notify_all()
         pass
 
-    def appendEntries(self):
+    def appendEntries(self, peer):
+        lastLogIndex = self.log.getLastLogIndex()
+        prevLogIndex = peer.nextIndex - 1
+        assert prevLogIndex <= lastLogIndex
+        
+        if peer.nextIndex < self.log.getLogStartIndex():
+            self.appendSnapshotChunk(peer)
+            return
+
+        if prevLogIndex >= self.log.getLogStartIndex():
+            prevLogTerm = self.log.getEntry(prevLogIndex).term
+        elif prevLogIndex == 0:
+            prevLogTerm = 0
+        elif prevLogIndex == self.lastSnapshotIndex:
+            prevLogTerm = self.lastSnapshotTerm
+        else:
+            self.appendSnapshotChunk(peer)
+
+        request = AppendEntries.Request()
+        request.server_id = self.serverId
+        request.recipient_id = int(peer.serverId)
+        request.term = self.currentTerm
+        request.prev_log_term = prevLogTerm
+        request.prev_log_index = prevLogIndex
+
+        numEntries = 0
+        if not peer.forceHeartbeat:
+            entryId = peer.nextIndex
+            while entryId <= lastLogIndex:
+                entry = self.log.getEntry(entryId)
+                request.append([entry])
+                entryId += 1
+                numEntries += 1
+
+        request.commit_index = min(self.commitIndex, prevLogIndex + numEntries)
+        response = peer.callRPC(APPEND_ENTRIES, request)
         pass
 
     def appendSnapshotChunk(self):
+        assert 0
         pass
 
     def becomeLeader(self):
@@ -241,6 +372,7 @@ class RaftConsensus(Consensus):
         entry.type = NOOP
         self.append([entry, ])
         self.interruptAll()
+
         pass
 
     def discardUnneededEntries(self):

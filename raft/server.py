@@ -1,5 +1,9 @@
 # see: http://ramcloud.stanford.edu/raft.pdf
 
+import datetime
+import threading
+import zmq
+
 from config import *
 
 class Server(object):
@@ -72,7 +76,7 @@ class Peer(Server):
         self.consensus = consensus
         self.exiting = False
         self.requestVoteDone = False
-        self.forceHeartBeat = False
+        self.forceHeartbeat = False
         self.nextIndex = consensus.log.getLastLogIndex() + 1
         self.lastAgreeIndex = 0
         self.lastAckEpoch = 0
@@ -83,7 +87,13 @@ class Peer(Server):
         self.isCaughtUp_ = False
         self.lastSnapshotIndex = 0
 
-    def callRPC(self):
+        requester = self.zctx.socket(zmq.DEALER)
+        requester.connect('tcp://%s:%s' % (self.address, 9998))
+
+        # the raft leader sends requests to raft peers
+
+    def callRPC(self, opcode, request):
+        print 'implement callRPC'
         pass
 
     def startThread(self):
@@ -112,7 +122,7 @@ class Peer(Server):
     def exit(self):
         self.exiting = True
 
-    def getLastAckEpoch():
+    def getLastAckEpoch(self):
         return self.lastAckEpoch
 
     def getLastAgreeIndex(self):

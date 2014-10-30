@@ -11,7 +11,10 @@ class MemoryLog(Log):
         return "fix MemoryLog.__str__"
 
     def append(self, newentries):
+        firstIndex = self.startIndex + len(self.entries)
+        lastIndex = firstIndex + len(newentries) -1
         self.entries += newentries # wuhahaha
+        return (firstIndex, lastIndex)
         
     def getEntry(self, index):
         return self.entries[index - self.startIndex]
