@@ -12,7 +12,6 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-package LogCabin.Protocol.Raft;
 
 /**
  * \file
@@ -261,3 +260,4 @@ message AppendSnapshotChunk {
         required uint64 term = 1;
     }
 }
+
