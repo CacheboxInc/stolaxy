@@ -71,10 +71,7 @@ class RaftConsensus(Consensus):
         entryId = log.getLogStartIndex()
         while entryId <= log.getLastLogIndex():
             entry = log.getEntry(entryId)
-            print entry
             entryId += 1
-        
-        print "log contains indexes %s to %s" % (log.getLogStartIndex(), log.getLastLogIndex())
 
         # missing code here. FIX
         if log.metadata.has_current_term():
@@ -139,11 +136,15 @@ class RaftConsensus(Consensus):
     def replicate(self):
         pass
 
-    def setConfiguration(self, oldId, members):
-        print 'setConfiguration'.center(80, '#')
-        print 'changing raft configuration to: %s' % members
+    def setConfiguration(self, oldId, _members):
+        print 'changing raft configuration to: %s' % _members
         self.mutex.acquire()
         
+        members = []
+        for a,p,s in _members:
+            if s != self.serverId:
+                members.append((a, p, s))
+            
         nextConfiguration = SimpleConfiguration()
         for address, port, serverId in members:
             server = Server()
@@ -151,17 +152,12 @@ class RaftConsensus(Consensus):
             server.address = address
             nextConfiguration.servers.extend([server])
 
-        print self.state
-
         if self.state != LEADER:
-            print 'setConfiguration.NOT LEADER'
             self.mutex.release()
             return False
 
 #        if self.configuration.id != oldId or self.configuration.state != STABLE:
         if self.configuration.state != STABLE:
-            print 'setConfiguration. config changed!'
-            print self.configuration.state, STABLE
             self.mutex.release()
             return False
 
@@ -174,7 +170,6 @@ class RaftConsensus(Consensus):
 
         while True:
             if self.exiting or term != self.currentTerm:
-                print 'setConfiguration. term or exiting'
                 self.mutex.release()
                 return False
 
@@ -185,7 +180,6 @@ class RaftConsensus(Consensus):
                 if self.configuration.stagingMin('getLastAckEpoch') < epoch:
                     self.configuration.resetStagingServers()
                     self.stateChanged.notifyAll()
-                    print 'setConfiguration epoch!'
                     self.mutex.release()
                     return False
 
@@ -206,7 +200,6 @@ class RaftConsensus(Consensus):
         result = self.replicateEntry(entry)
 
         if result != True:
-            print 'setConfiguration: replicate entry!'
             self.mutex.release()
             return False
         
@@ -238,8 +231,8 @@ class RaftConsensus(Consensus):
 
                 self.log.syncComplete()
                 self.mutex.acquire()
-                print 'waitng for state change'
             self.stateChanged.wait()
+        self.mutex.release()
         pass
 
     def timerThreadMain(self):
@@ -301,6 +294,7 @@ class RaftConsensus(Consensus):
             entry = Entry()
             entry.ParseFromString(message)
             print 'message received'
+            print entry
         
     def advanceCommittedId(self):
         pass
@@ -366,6 +360,7 @@ class RaftConsensus(Consensus):
                 numEntries += 1
 
         request.commit_index = min(self.commitIndex, prevLogIndex + numEntries)
+        print 'sending APPEND_ENTRIES to %s' % peer.address
         response = peer.callRPC(APPEND_ENTRIES, request)
         pass
 

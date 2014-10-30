@@ -78,8 +78,8 @@ class Peer(object):
         self.uuid = uuid
         self.is_alive()
         self.address = address
-        self.port = port
-        self.serverId = serverId
+        self.port = int(port)
+        self.serverId = int(serverId)
 
     def is_alive(self):
         """Reset the peers expiry time
@@ -173,7 +173,7 @@ class InterfaceAgent(object):
     def localPort(self):
         if self.peers.has_key(self.uuid):
             localnode = self.peers[self.uuid]
-            return localnode.port
+            return int(localnode.port)
         return None
 
     def isMember(self):
@@ -182,6 +182,6 @@ class InterfaceAgent(object):
     def members(self):
         _m = []
         for m in self.peers.values():
-            _m.append((m.address, m.port, m.serverId))
+            _m.append((m.address, int(m.port), int(m.serverId)))
 
         return _m

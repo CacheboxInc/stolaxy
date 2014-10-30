@@ -137,8 +137,6 @@ class Configuration(object):
             server.address = s.address
             self.oldServers.servers.append(server)
 
-        print 'setConfiguration.TBD. state = %s' % self.state
-
     def stagingAll(self, predicate):
         if self.state == STAGING:
             return self.newServers.all(predicate)
