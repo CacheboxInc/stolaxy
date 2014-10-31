@@ -49,7 +49,7 @@ class SimpleConfiguration(object):
 
         values = []
         for server in self.servers:
-            values.push(getattr(server, getValue)())
+            values.append(getattr(server, getValue)())
             
         values.sort()
         return values[(len(values) - 1)/2]
@@ -67,6 +67,7 @@ class Configuration(object):
         self.description = None
 
     def forEach(self, sideEffect):
+        print 'running %s on servers: %s' % (sideEffect, self.knownServers.keys())
         for server in self.knownServers.values():
             getattr(server, sideEffect)()
 
@@ -91,6 +92,10 @@ class Configuration(object):
 
     def quorumMin(self, getValue):
         if self.state == TRANSITIONAL:
+            A = self.oldServers.quorumMin(getValue)
+            B = self.newServers.quorumMin(getValue)
+            print 'quorumMin: A=%s, B=%s' % (A, B)
+            print self.oldServers.servers, self.newServers.servers
             return min(self.oldServers.quorumMin(getValue), self.newServers.quorumMin(getValue))
         else:
             return self.oldServers.quorumMin(getValue)
@@ -128,12 +133,12 @@ class Configuration(object):
         self.newServers.servers = []
         
         for s in self.description.prev_configuration.servers:
-            server = self.getServer(s.id, s.address)
+            server = self.getServer(s.server_id, s.address)
             server.address = s.address
             self.oldServers.servers.append(server)
 
         for s in self.description.next_configuration.servers:
-            server = self.getServer(s.id, s.address)
+            server = self.getServer(s.server_id, s.address)
             server.address = s.address
             self.oldServers.servers.append(server)
 
@@ -165,6 +170,9 @@ class ConfigurationManager(object):
         self.descriptions = {}
 
     def add(self, index, description):
+        print ' CONFIGURATION MANAGER(NEW CLUSTER CONFIG) '.center(80, '#')
+        print description
+        print '#'.center(80, '#')
         self.descriptions[index] = description
         self.restoreInvariants()
         pass
@@ -176,3 +184,11 @@ class ConfigurationManager(object):
             for configid in self.descriptions:
                 if self.configuration.id != configid:
                     self.configuration.setConfiguration(configid, self.descriptions[configid])
+
+    def truncateSuffix(self, lastIndexKept):
+        for d in self.descriptions:
+            if d <= lastIndexKept:
+                continue
+            del self.descriptions[d]
+
+        self.restoreInvariants()

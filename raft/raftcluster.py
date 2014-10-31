@@ -25,11 +25,15 @@ def reconfigurations(raft, cluster):
             if address == cluster.localAddress() and what == 'JOINED':
                 assert cluster.isMember()
                 print '%s JOINED the cluster. Starting Raft RSM' % address
-                raft.bootstrapConfiguration()
+                if len(cluster.members()) == 1:
+                    raft.bootstrapConfiguration()
                 raft.init(cluster.serverId)
             else:
                 assert address != cluster.localAddress()
-                raft.setConfiguration(1, cluster.members())
+                if what == 'JOINED':
+                    print 'SET CONFIGURATION'
+                    raft.setConfiguration(1, cluster.members())
+                    print 'SET CONFIGURATION DONE'
                 
         except KeyboardInterrupt:
             print("interrupted")

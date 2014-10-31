@@ -62,6 +62,7 @@ class LocalServer(Server):
         return self.consensus.currentEpoch
 
     def getLastAgreeIndex(self):
+        print 'local: getLastAgreeIndex:', self.lastSyncedIndex
         return self.lastSyncedIndex
 
     def isCaughtUp(self):
@@ -87,6 +88,9 @@ class Peer(Server):
         self.isCaughtUp_ = False
         self.lastSnapshotIndex = 0
         self.address = address
+        self.lastCatchUpIterationMs = 0
+        self.thisCatchUpIterationStart = datetime.datetime.now()
+        self.thisCatchUpIterationGoalId = 0
 
         requester = consensus.zctx.socket(zmq.DEALER)
         requester.connect('tcp://%s:5556' % (self.address))
@@ -94,9 +98,9 @@ class Peer(Server):
 
         # the raft leader sends requests to raft peers
 
-    def callRPC(self, opcode, request):
-        response = self.requester.send(request.SerializeToString())
-        return response
+    def callRPC(self, request):
+        self.requester.send(request.SerializeToString())
+        return self.requester.recv()
 
     def startThread(self):
         self.thisCatchUpIterationStart = datetime.datetime.now()
@@ -128,6 +132,7 @@ class Peer(Server):
         return self.lastAckEpoch
 
     def getLastAgreeIndex(self):
+        print 'peer: getLastAgreeIndex:', self.lastAgreeIndex
         return self.lastAgreeIndex
 
     def isCaughtUp(self):

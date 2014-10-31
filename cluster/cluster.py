@@ -162,7 +162,13 @@ class InterfaceAgent(object):
         for peer in list(self.peers.values()):
             if peer.expires_at < now:
                 peer = self.peers.pop(peer.uuid)
-                self.pipe.send_multipart([b'LEFT', peer.uuid, peer.serverId, peer.address, str(peer.port)])
+                self.pipe.send_multipart([
+                        b'LEFT',
+                        peer.uuid,
+                        str(peer.serverId),
+                        peer.address,
+                        str(peer.port)
+                        ])
 
     def localAddress(self):
         if self.peers.has_key(self.uuid):

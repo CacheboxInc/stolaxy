@@ -118,13 +118,18 @@ message Entry {
     optional bytes data = 4;
 }
 
+message RPC {
+	required OpCode opcode = 1;
+}
+
 /**
  * RequestVote RPC: ask a server for its vote in an election and/or get a
  * server's log information.
  */
 message RequestVote {
-    required OpCode opcode = 1;
     message Request {
+        required OpCode opcode = 1;
+
         /**
          * ID of the caller, so that if it re-requests the vote from the
          * callee, the server will respond granted.
@@ -150,6 +155,8 @@ message RequestVote {
         required uint64 last_log_index = 6;
     }
     message Response {
+        required OpCode opcode = 1;
+
         /**
          * Callee's term, for caller to update itself.
          */
@@ -166,8 +173,8 @@ message RequestVote {
  * AppendEntries RPC: replicate log entries to a follower.
  */
 message AppendEntries {
-    required OpCode opcode = 1;
     message Request {
+        required OpCode opcode = 1;
         /**
          * ID of leader (caller), so the follower can redirect clients.
          */
@@ -200,6 +207,7 @@ message AppendEntries {
         required uint64 commit_index = 8;
     }
     message Response {
+        required OpCode opcode = 1;
         /**
          * Callee's term, for the caller to update itself.
          */
