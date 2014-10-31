@@ -344,6 +344,7 @@ class RaftConsensus(Consensus):
             self.appendSnapshotChunk(peer)
 
         request = AppendEntries.Request()
+        request.opcode = APPEND_ENTRIES
         request.server_id = self.serverId
         request.recipient_id = int(peer.serverId)
         request.term = self.currentTerm

@@ -123,41 +123,42 @@ message Entry {
  * server's log information.
  */
 message RequestVote {
+    required OpCode opcode = 1;
     message Request {
         /**
          * ID of the caller, so that if it re-requests the vote from the
          * callee, the server will respond granted.
          */
-        required uint64 server_id = 1;
+        required uint64 server_id = 2;
         /**
          * ID of the intended callee.
          */
-        required uint64 recipient_id = 5;
+        required uint64 recipient_id = 3;
         /**
          * Caller's term.
          */
-        required uint64 term = 2;
+        required uint64 term = 4;
         /**
          * Term of last entry in caller's log.
          * Used to compare log completeness.
          */
-        required uint64 last_log_term = 3;
+        required uint64 last_log_term = 5;
         /**
          * ID of last entry in caller's log.
          * Used to compare log completeness.
          */
-        required uint64 last_log_index = 4;
+        required uint64 last_log_index = 6;
     }
     message Response {
         /**
          * Callee's term, for caller to update itself.
          */
-        required uint64 term = 1;
+        required uint64 term = 2;
         /**
          * True if the follower granted the candidate its vote, false
          * otherwise.
          */
-        required bool granted = 2;
+        required bool granted = 3;
     }
 }
 
@@ -165,47 +166,48 @@ message RequestVote {
  * AppendEntries RPC: replicate log entries to a follower.
  */
 message AppendEntries {
+    required OpCode opcode = 1;
     message Request {
         /**
          * ID of leader (caller), so the follower can redirect clients.
          */
-        required uint64 server_id = 1;
+        required uint64 server_id = 2;
         /**
          * ID of the intended callee.
          */
-        required uint64 recipient_id = 7;
+        required uint64 recipient_id = 3;
         /**
          * Caller's term.
          */
-        required uint64 term = 2;
+        required uint64 term = 4;
         /**
          * ID of entry preceding entries, or ID of last log entry for
          * heartbeat.
          */
-        required uint64 prev_log_index = 3;
+        required uint64 prev_log_index = 5;
         /**
          * Term of prev_log_index.
          */
-        required uint64 prev_log_term = 4;
+        required uint64 prev_log_term = 6;
         /**
          * Log entries for follower to store, or empty for heartbeat.
          */
-        repeated Entry entries = 5;
+        repeated Entry entries = 7;
         /**
          * Last committed entry that the follower has, so the follower can
          * advance its state machine.
          */
-        required uint64 commit_index = 6;
+        required uint64 commit_index = 8;
     }
     message Response {
         /**
          * Callee's term, for the caller to update itself.
          */
-        required uint64 term = 1;
+        required uint64 term = 2;
         /**
          * True if new entries were added to the log.
          */
-        required bool success = 2;
+        required bool success = 3;
     }
 }
 
@@ -213,6 +215,7 @@ message AppendEntries {
  * AppendSnapshotChunk RPC: replicate part of a snapshot file to a follower.
  */
 message AppendSnapshotChunk {
+    required OpCode opcode = 1;
     message Request {
         /**
          * ID of leader (caller), so the follower can redirect clients.
