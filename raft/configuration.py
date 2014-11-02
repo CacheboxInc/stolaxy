@@ -67,15 +67,14 @@ class Configuration(object):
         self.description = None
 
     def forEach(self, sideEffect):
-        print 'running %s on servers: %s' % (sideEffect, self.knownServers.keys())
         for server in self.knownServers.values():
             getattr(server, sideEffect)()
 
     def hasVote(self, server):
         if self.state == TRANSITIONAL:
-            return self.oldServers.has_key(server) or self.newServers.has_key(server)
+            return server in self.oldServers.servers or server in self.newServers.servers
         else:
-            return oldeServers.has_key(server)
+            return server in self.oldServers.servers
 
     def lookupAddress(self, serverId):
         for server in self.knownServers.values():
@@ -92,10 +91,6 @@ class Configuration(object):
 
     def quorumMin(self, getValue):
         if self.state == TRANSITIONAL:
-            A = self.oldServers.quorumMin(getValue)
-            B = self.newServers.quorumMin(getValue)
-            print 'quorumMin: A=%s, B=%s' % (A, B)
-            print self.oldServers.servers, self.newServers.servers
             return min(self.oldServers.quorumMin(getValue), self.newServers.quorumMin(getValue))
         else:
             return self.oldServers.quorumMin(getValue)
@@ -104,8 +99,8 @@ class Configuration(object):
         self.state = BLANK
         self.id = 0
         self.description = None
-        self.oldServers.servers = {}
-        self.newServers.servers = {}
+        self.oldServers.servers = []
+        self.newServers.servers = []
         self.knownServers = {}
         self.knownServers[self.localServer.serverId] = self.localServer
 
@@ -140,7 +135,7 @@ class Configuration(object):
         for s in self.description.next_configuration.servers:
             server = self.getServer(s.server_id, s.address)
             server.address = s.address
-            self.oldServers.servers.append(server)
+            self.newServers.servers.append(server)
 
     def stagingAll(self, predicate):
         if self.state == STAGING:

@@ -31,9 +31,7 @@ def reconfigurations(raft, cluster):
             else:
                 assert address != cluster.localAddress()
                 if what == 'JOINED':
-                    print 'SET CONFIGURATION'
                     raft.setConfiguration(1, cluster.members())
-                    print 'SET CONFIGURATION DONE'
                 
         except KeyboardInterrupt:
             print("interrupted")

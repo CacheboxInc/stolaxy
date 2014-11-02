@@ -62,7 +62,6 @@ class LocalServer(Server):
         return self.consensus.currentEpoch
 
     def getLastAgreeIndex(self):
-        print 'local: getLastAgreeIndex:', self.lastSyncedIndex
         return self.lastSyncedIndex
 
     def isCaughtUp(self):
@@ -132,7 +131,6 @@ class Peer(Server):
         return self.lastAckEpoch
 
     def getLastAgreeIndex(self):
-        print 'peer: getLastAgreeIndex:', self.lastAgreeIndex
         return self.lastAgreeIndex
 
     def isCaughtUp(self):

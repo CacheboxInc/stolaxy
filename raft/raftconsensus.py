@@ -106,6 +106,11 @@ class RaftConsensus(Consensus):
         server = Server()
         server.server_id = self.serverId
         server.address = self.serverAddress
+
+        prev_configuration = SimpleConfiguration()
+        prev_configuration.servers.extend([server])
+        entry.configuration.prev_configuration.CopyFrom(prev_configuration)
+        
         self.append(entry)
         self.mutex.release()
         pass
@@ -267,7 +272,6 @@ class RaftConsensus(Consensus):
 
             if datetime.datetime.now() >= checkProgressAt:
                 if self.configuration.stagingMin('getLastAckEpoch') < epoch:
-                    print self.configuration.stagingMin('getLastAckEpoch'), epoch
                     self.configuration.resetStagingServers()
                     self.stateChanged.notifyAll()
                     self.mutex.release()
@@ -280,7 +284,6 @@ class RaftConsensus(Consensus):
                     
             self.stateChanged.wait(ELECTION_TIMEOUT_SECONDS)
 
-        print 'NEW CONFIGURATION'.center(80, '#')
         newConfiguration = Configuration()
         newConfiguration.prev_configuration.CopyFrom(self.configuration.description.prev_configuration)
         newConfiguration.next_configuration.CopyFrom(nextConfiguration)
@@ -316,13 +319,14 @@ class RaftConsensus(Consensus):
                 self.mutex.release()
                 sync.wait()
                 self.leaderDiskThreadWorking = False
+                self.mutex.acquire()
                 
                 if self.state == LEADER and self.currentTerm == term:
                     self.configuration.localServer.lastSyncedIndex = sync.lastIndex
                     self.advanceCommittedId()
 
                 self.log.syncComplete()
-                self.mutex.acquire()
+
             self.stateChanged.wait()
         self.mutex.release()
         pass
@@ -351,7 +355,6 @@ class RaftConsensus(Consensus):
                 if self.state == FOLLOWER:
                     waitUntil = datetime.datetime.max
                 elif self.state == CANDIDATE:
-                    print 'CANDIDATE'.center(80, '#')
                     if not peer.requestVoteDone:
                         self.requestVote(peer)
                     else:
@@ -408,23 +411,19 @@ class RaftConsensus(Consensus):
             return
 
         newCommittedId = self.configuration.quorumMin('getLastAgreeIndex')
-        print 'advanceCommittedId ', newCommittedId
         if self.commitIndex >= newCommittedId:
-            print '2' * 80
             return
 
         assert newCommittedId >= self.log.getLogStartIndex()
         if self.log.getEntry(newCommittedId).term != self.currentTerm:
-            print '3' * 80
             return
 
         self.commitIndex = newCommittedId
-        print 'NEW COMMITED INDEX: %s' % self.commitIndex
         assert self.commitIndex <= self.log.getLastLogIndex()
         self.stateChanged.notifyAll()
 
         if self.state == LEADER and self.commitIndex >= self.configuration.id:
-            if not configuration.hasVote(configuration.localServer):
+            if not self.configuration.hasVote(self.configuration.localServer):
                 self.stepDown(self.currentTerm + 1)
                 return
         if self.configuration.state == TRANSITIONAL:
@@ -463,7 +462,6 @@ class RaftConsensus(Consensus):
         pass
 
     def appendEntries(self, peer):
-        print 'appendEntries'.center(80, '#')
         lastLogIndex = self.log.getLastLogIndex()
         prevLogIndex = peer.nextIndex - 1
         assert prevLogIndex <= lastLogIndex
@@ -515,12 +513,10 @@ class RaftConsensus(Consensus):
             peer.nextHeartbeatTime = start + datetime.timedelta(seconds = HEARTBEAT_PERIOD_SECONDS)
             
             if response.success:
-                print 'lastAgreeIndex', peer.lastAgreeIndex, prevLogIndex, numEntries
                 if peer.lastAgreeIndex > prevLogIndex + numEntries:
                     pass
                 else:
                     peer.lastAgreeIndex = prevLogIndex + numEntries
-                    print 'lastAgreeIndex = %s' % peer.lastAgreeIndex
                     self.advanceCommittedId()
 
                 peer.nextIndex = peer.lastAgreeIndex + 1
@@ -591,7 +587,6 @@ class RaftConsensus(Consensus):
                 if self.commitIndex >= index:
                     print 'replicate succeeded!'
                     return True
-                print self.commitIndex, index
                 self.stateChanged.wait()
         return False
 
