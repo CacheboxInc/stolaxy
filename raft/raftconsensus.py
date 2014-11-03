@@ -2,6 +2,7 @@ import datetime
 import logging
 import random
 import threading
+import time
 import zmq
 
 from config import *
@@ -22,25 +23,10 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 logger = logging.getLogger('raft')
 logger.setLevel(logging.INFO)
 
-class MyMutex(object):
-    def __init__(self):
-        self.mutex = threading.Lock()
-
-    def acquire(self, blocking = True):
-        print 'acquiring mutex'
-        self.mutex.acquire(blocking)
-        print 'mutex acquired'
-
-    def release(self):
-        print 'releasing mutex'
-        self.mutex.release()
-        print ' mutex released'
-
 class RaftConsensus(Consensus):
     def __init__(self, serverId, serverAddress):
         Consensus.__init__(self, serverId, serverAddress)
         self.mutex = threading.Lock()
-#        self.mutex = MyMutex()
         self.stateChanged = threading.Condition(self.mutex)
         self.exiting = False
         self.numPeerThreads = 0
@@ -95,13 +81,16 @@ class RaftConsensus(Consensus):
         self.stepDownThread = threading.Thread(target = self.stepDownThreadMain)
         self.stepDownThread.start()
             
+        # self.testThread = threading.Thread(target = self.testThreadMain)
+        # self.testThread.start()
+
         self.stateChanged.notifyAll()
         self.mutex.release()
 
     def bootstrapConfiguration(self):
         self.mutex.acquire()
-        assert self.currentTerm == 0 and self.log.getLogStartIndex() == 1 and self.log.getLastLogIndex() == 0 \
-            and self.lastSnapshotIndex == 0
+        assert self.currentTerm == 0 and self.log.getLogStartIndex() == 1 and \
+            self.log.getLastLogIndex() == 0 and self.lastSnapshotIndex == 0
 
         self.stepDown(1)
         entry = Entry()
@@ -146,12 +135,14 @@ class RaftConsensus(Consensus):
             return response
 
         if request.term > self.currentTerm:
-            logger.info('caller %s has newer term, updating from %s to %s' % (request.server_id, self.currentTerm, request.term))
+            logger.info('caller %s has newer term, updating from %s to %s' % (
+                    request.server_id, self.currentTerm, request.term))
             response.term = request.term
         
         self.stepDown(request.term)
         self.setElectionTimer()
-        self.withholdVotesUntil = datetime.datetime.now() + datetime.timedelta(ELECTION_TIMEOUT_SECONDS)
+        self.withholdVotesUntil = datetime.datetime.now() + \
+            datetime.timedelta(ELECTION_TIMEOUT_SECONDS)
         
         if self.leaderId == 0:
             self.leaderId = request.server_id
@@ -181,11 +172,13 @@ class RaftConsensus(Consensus):
                 continue
 
             if self.log.getLastLogIndex() >= entryId:
-                assert 0, 'Handle this!'
                 if self.log.getEntry(entryId).term == entry.term:
                     continue
 
                 assert self.commitIndex < entryId
+                logger.info('Truncating %s entries after %s from the log' % (
+                        self.log.getLastLogIndex() - entryId + 1, entryId - 1))
+
                 self.log.truncateSuffix(entryId - 1)
                 self.configurationManager.truncateSuffix(entryId - 1)
             
@@ -197,7 +190,7 @@ class RaftConsensus(Consensus):
         if self.commitIndex < request.commit_index:
             self.commitIndex = request.commit_index
             assert self.commitIndex <= self.log.getLastLogIndex()
-            self.stateChanged.notify_all()
+            self.stateChanged.notifyAll()
 
         self.mutex.release()
         return response
@@ -311,7 +304,22 @@ class RaftConsensus(Consensus):
     def snapshotDone(self):
         pass
 
-# private functions
+    def testThreadMain(self):
+        logger.debug('testThreadMain. sleeping for 60 seconds')
+        time.sleep(60)
+        logger.debug('testThreadMain. starting test')
+        self.mutex.acquire()
+        while not self.exiting:
+            entry = Entry()
+            entry.term = self.currentTerm
+            entry.type = DATA
+            entry.data = 'T' * 8192
+            self.append(entry)
+            self.mutex.release()
+            time.sleep(0.01)
+            self.mutex.acquire()
+
+        self.mutex.release()
 
     def leaderDiskThreadMain(self):
         self.mutex.acquire()
@@ -468,7 +476,7 @@ class RaftConsensus(Consensus):
                 pass
             index += 1
 
-        self.stateChanged.notify_all()
+        self.stateChanged.notifyAll()
         pass
 
     def appendEntries(self, peer):
@@ -513,14 +521,17 @@ class RaftConsensus(Consensus):
         start = datetime.datetime.now()
 
         if numEntries:
-            logger.debug('sending message with payload: %s, message_number: %s' % (peer.address, request.message_number))
+            logger.debug('sending message with payload: %s, message_number: %s' % (
+                    peer.address, request.message_number))
         else:
-            logger.debug('sending heartbeat: %s, message_number: %s' % (peer.address, request.message_number))
+            logger.debug('sending heartbeat: %s, message_number: %s' % (
+                    peer.address, request.message_number))
 
         message = peer.callRPC(request, self.mutex)
         response = AppendEntries.Response()
         response.ParseFromString(message)        
-        logger.debug('rpc returned: %s, message_number: %s' % (peer.address, response.message_number))
+        logger.debug('rpc returned: %s, message_number: %s' % (
+                peer.address, response.message_number))
 
         assert request.message_number == response.message_number
 
@@ -716,8 +727,3 @@ class RaftConsensus(Consensus):
 
     def upToDateLeader(self):
         pass
-
-if __name__ == '__main__':
-    rc = RaftConsensus(1, '127.0.0.1')
-    rc.bootstrapConfiguration()
-    rc.init(1)
