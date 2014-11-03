@@ -258,7 +258,8 @@ class RaftConsensus(Consensus):
         self.stateChanged.notifyAll()
         self.currentEpoch += 1
         epoch = self.currentEpoch
-        checkProgressAt = datetime.datetime.now() + datetime.timedelta(seconds = ELECTION_TIMEOUT_SECONDS)
+        checkProgressAt = datetime.datetime.now() + \
+            datetime.timedelta(seconds = ELECTION_TIMEOUT_SECONDS)
 
         while True:
             if self.exiting or term != self.currentTerm:
@@ -278,12 +279,14 @@ class RaftConsensus(Consensus):
                 else:
                     self.currentEpoch += 1
                     epoch = self.currentEpoch
-                    checkProgressAt = datetime.datetime.now() + datetime.timedelta(seconds = ELECTION_TIMEOUT_SECONDS)
+                    checkProgressAt = datetime.datetime.now() + \
+                        datetime.timedelta(seconds = ELECTION_TIMEOUT_SECONDS)
                     
             self.stateChanged.wait(ELECTION_TIMEOUT_SECONDS)
 
         newConfiguration = Configuration()
-        newConfiguration.prev_configuration.CopyFrom(self.configuration.description.prev_configuration)
+        newConfiguration.prev_configuration.CopyFrom(
+            self.configuration.description.prev_configuration)
         newConfiguration.next_configuration.CopyFrom(nextConfiguration)
 
         entry = Entry()
@@ -373,7 +376,8 @@ class RaftConsensus(Consensus):
                     else:
                         waituntil = datetime.datetime.max
                 elif self.state == LEADER:
-                    if peer.getLastAgreeIndex() < self.log.getLastLogIndex() or peer.nextHeartbeatTime < now:
+                    if peer.getLastAgreeIndex() < self.log.getLastLogIndex() \
+                            or peer.nextHeartbeatTime < now:
                         self.appendEntries(peer)
                     else:
                         waitUntil = peer.nextHeartbeatTime
@@ -406,7 +410,8 @@ class RaftConsensus(Consensus):
             rpc.ParseFromString(message)
             response = None
 
-            logger.debug('received RPC: %d, message_number: %s' % (rpc.opcode, rpc.message_number))
+            logger.debug('received RPC: %d, message_number: %s' % (
+                    rpc.opcode, rpc.message_number))
             if rpc.opcode == APPEND_ENTRIES:
                 ae = AppendEntries.Request()
                 ae.ParseFromString(message)
@@ -422,7 +427,8 @@ class RaftConsensus(Consensus):
             if response:
                 handler.send(response.SerializeToString())
             
-            logger.debug('completed RPC: %d, message_number: %s' % (rpc.opcode, rpc.message_number))
+            logger.debug('completed RPC: %d, message_number: %s' % (
+                    rpc.opcode, rpc.message_number))
             
     def advanceCommittedId(self):
         if self.state != LEADER:
