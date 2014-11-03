@@ -16,7 +16,10 @@ class FileObject(object):
         return os.read(self.f, size)
 
     def write(self, data):
-        return os.write(self.f, data)
+        r = os.write(self.f, data)
+        os.fsync(self.f)
+        print 'write called: f(%s) ret=(%d)' % (self.f, r)
+        return r
 
     def close(self):
         return os.close(self.f)
