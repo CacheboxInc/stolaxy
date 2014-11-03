@@ -120,6 +120,7 @@ message Entry {
 
 message RPC {
 	required OpCode opcode = 1;
+	optional uint64 message_number = 9;
 }
 
 /**
@@ -153,6 +154,7 @@ message RequestVote {
          * Used to compare log completeness.
          */
         required uint64 last_log_index = 6;
+	optional uint64 message_number = 9;
     }
     message Response {
         required OpCode opcode = 1;
@@ -166,6 +168,7 @@ message RequestVote {
          * otherwise.
          */
         required bool granted = 3;
+	optional uint64 message_number = 9;
     }
 }
 
@@ -205,6 +208,7 @@ message AppendEntries {
          * advance its state machine.
          */
         required uint64 commit_index = 8;
+	optional uint64 message_number = 9;
     }
     message Response {
         required OpCode opcode = 1;
@@ -216,6 +220,7 @@ message AppendEntries {
          * True if new entries were added to the log.
          */
         required bool success = 3;
+	optional uint64 message_number = 4;
     }
 }
 

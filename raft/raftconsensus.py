@@ -1,4 +1,5 @@
 import datetime
+import logging
 import random
 import threading
 import zmq
@@ -15,6 +16,11 @@ SUCCESS = 0
 FAIL = 1
 RETRY = 2
 NOT_LEADER = 3
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger('raft')
+logger.setLevel(logging.INFO)
 
 class MyMutex(object):
     def __init__(self):
@@ -57,10 +63,8 @@ class RaftConsensus(Consensus):
         self.stepDownThread = None
         self.configuration = XConfiguration(serverId, self)
         self.configurationManager = ConfigurationManager(self.configuration)
+        self.message_number = 0
         self.zctx = zmq.Context()
-        rpchandler = self.zctx.socket(zmq.DEALER)
-        rpchandler.bind('tcp://%s:5556' % serverAddress)
-        self.rpchandler = rpchandler
         t = threading.Thread(target = self.rpcHandlerThread)
         t.start()
 
@@ -135,13 +139,14 @@ class RaftConsensus(Consensus):
         response.opcode = APPEND_ENTRIES
         response.term = self.currentTerm
         response.success = False
+        response.message_number = request.message_number
         
         if request.term < self.currentTerm:
             self.mutex.release()
             return response
 
         if request.term > self.currentTerm:
-            print 'caller %s has newer term, updating from %s to %s' % (request.server_id, self.currentTerm, request.term)
+            logger.info('caller %s has newer term, updating from %s to %s' % (request.server_id, self.currentTerm, request.term))
             response.term = request.term
         
         self.stepDown(request.term)
@@ -154,13 +159,13 @@ class RaftConsensus(Consensus):
             assert self.leaderId == request.server_id
 
         if request.prev_log_index > self.log.getLastLogIndex():
-            print 'rejecting append entries RPC. would leave a gap'
+            logger.warn('rejecting append entries RPC. would leave a gap')
             self.mutex.release()
             return response
 
         if request.prev_log_index >= self.log.getLogStartIndex() and \
                 self.log.getEntry(request.prev_log_index).term != request.prev_log_term:
-            print 'rejecting append entries RPC. terms dont agree'
+            logger.warn('rejecting append entries RPC. terms dont agree')
             self.mutex.release()
             return response
 
@@ -242,7 +247,7 @@ class RaftConsensus(Consensus):
             self.mutex.release()
             return False
         
-        print 'changing raft configuration to: %s' % members
+        logger.info('changing raft configuration to: %s' % members)
         nextConfiguration = SimpleConfiguration()
         for address, port, serverId in members:
             server = Server()
@@ -384,7 +389,8 @@ class RaftConsensus(Consensus):
         pass
 
     def rpcHandlerThread(self):
-        handler = self.rpchandler
+        handler = self.zctx.socket(zmq.REP)
+        handler.bind('tcp://%s:5556' % self.serverAddress)
         while True:
             message = handler.recv()
             
@@ -392,10 +398,12 @@ class RaftConsensus(Consensus):
             rpc.ParseFromString(message)
             response = None
 
+            logger.debug('received RPC: %d, message_number: %s' % (rpc.opcode, rpc.message_number))
             if rpc.opcode == APPEND_ENTRIES:
                 ae = AppendEntries.Request()
                 ae.ParseFromString(message)
                 response = self.handleAppendEntries(ae)
+                message_number = response.message_number
             elif rpc.opcode == REQUEST_VOTE:
                 rv = RequestVote.Request()
                 rv.ParseFromString(message)
@@ -405,7 +413,9 @@ class RaftConsensus(Consensus):
 
             if response:
                 handler.send(response.SerializeToString())
-        
+            
+            logger.debug('completed RPC: %d, message_number: %s' % (rpc.opcode, rpc.message_number))
+            
     def advanceCommittedId(self):
         if self.state != LEADER:
             return
@@ -481,6 +491,8 @@ class RaftConsensus(Consensus):
 
         request = AppendEntries.Request()
         request.opcode = APPEND_ENTRIES
+        request.message_number = self.message_number
+        self.message_number += 1
         request.server_id = self.serverId
         request.recipient_id = int(peer.serverId)
         request.term = self.currentTerm
@@ -500,9 +512,17 @@ class RaftConsensus(Consensus):
         epoch = self.currentEpoch
         start = datetime.datetime.now()
 
-        message = peer.callRPC(request)
+        if numEntries:
+            logger.debug('sending message with payload: %s, message_number: %s' % (peer.address, request.message_number))
+        else:
+            logger.debug('sending heartbeat: %s, message_number: %s' % (peer.address, request.message_number))
+
+        message = peer.callRPC(request, self.mutex)
         response = AppendEntries.Response()
         response.ParseFromString(message)        
+        logger.debug('rpc returned: %s, message_number: %s' % (peer.address, response.message_number))
+
+        assert request.message_number == response.message_number
 
         if response.term > self.currentTerm:
             self.stepDown(response.term)
@@ -545,7 +565,7 @@ class RaftConsensus(Consensus):
 
     def becomeLeader(self):
         assert self.state == CANDIDATE
-        print 'becoming leader for term: %d' % self.currentTerm
+        logger.info('becoming leader for term: %d' % self.currentTerm)
         self.state = LEADER
         self.leaderId = self.serverId
         self.startElectionAt = datetime.datetime.max
@@ -585,29 +605,29 @@ class RaftConsensus(Consensus):
             index = self.log.getLastLogIndex()
             while not self.exiting and self.currentTerm == entry.term:
                 if self.commitIndex >= index:
-                    print 'replicate succeeded!'
                     return True
                 self.stateChanged.wait()
         return False
 
     def requestVote(self, peer):
-        print 'REQUEST VOTE'
         request = RequestVote.Request()
         request.opcode = REQUEST_VOTE
         request.server_id = self.serverId
         request.recipient_id = peer.serverId
         request.term = self.currentTerm
+        request.message_number = self.message_number
+        self.message_number += 1
         request.last_log_term = self.getLastLogTerm()
         request.last_log_index = self.log.getLastLogIndex()
         
         start = datetime.datetime.now()
         epoch = self.currentEpoch
-        message = peer.callRPC(request)
+        logger.info('REQUEST VOTE: %s' % request)
+        message = peer.callRPC(request, self.mutex)
         response = RequestVote.Response()
         response.ParseFromString(message)
         
         if not response:
-            print 'rpc failure'
             peer.backoffUntil = start + RPC_FAILURE_BACKOFF_MS
             return
 
@@ -623,17 +643,18 @@ class RaftConsensus(Consensus):
             
             if response.granted:
                 peer.haveVote_ = True
-                print 'gote vote for term %d' % self.currentTerm
+                logger.info('got vote for term %d' % self.currentTerm)
                 if self.configuration.quorumAll('haveVote'):
                     self.becomeLeader()
             else:
-                print 'vote not granted'
+                logger.info('vote not granted')
 
         pass
 
     def setElectionTimer(self):
         ms = random.randrange(ELECTION_TIMEOUT, ELECTION_TIMEOUT * 2)
         self.startElectionAt = datetime.datetime.now() + datetime.timedelta(seconds = ms/1000)
+        logger.debug('starting election at: %s' % self.startElectionAt)
         self.stateChanged.notifyAll()
         pass
 
@@ -643,7 +664,7 @@ class RaftConsensus(Consensus):
         #     return
 
         if self.state == FOLLOWER:
-            print 'running for election in term: %d' % (self.currentTerm + 1)
+            logger.info('running for election in term: %d' % (self.currentTerm + 1))
 
         self.currentTerm += 1
         self.state = CANDIDATE
@@ -656,7 +677,7 @@ class RaftConsensus(Consensus):
         if self.configuration.quorumAll('haveVote'):
             self.becomeLeader()
         else:
-            print 'no quorum!'.center(80, '#')
+            logger.info('no quorum!'.center(80, '#'))
 
         pass
 

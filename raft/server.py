@@ -91,15 +91,18 @@ class Peer(Server):
         self.thisCatchUpIterationStart = datetime.datetime.now()
         self.thisCatchUpIterationGoalId = 0
 
-        requester = consensus.zctx.socket(zmq.DEALER)
+        requester = consensus.zctx.socket(zmq.REQ)
         requester.connect('tcp://%s:5556' % (self.address))
         self.requester = requester
 
         # the raft leader sends requests to raft peers
 
-    def callRPC(self, request):
+    def callRPC(self, request, mutex):
         self.requester.send(request.SerializeToString())
-        return self.requester.recv()
+        mutex.release()
+        response = self.requester.recv()
+        mutex.acquire()
+        return response
 
     def startThread(self):
         self.thisCatchUpIterationStart = datetime.datetime.now()
