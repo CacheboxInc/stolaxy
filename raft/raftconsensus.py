@@ -3,6 +3,7 @@ import logging
 import random
 import threading
 import time
+import zlib
 import zmq
 
 from config import *
@@ -181,7 +182,10 @@ class RaftConsensus(Consensus):
 
                 self.log.truncateSuffix(entryId - 1)
                 self.configurationManager.truncateSuffix(entryId - 1)
-            
+
+            if entry.type == WRITE and entry.write.type == COMPRESSED:
+                print zlib.decompress(entry.write.payload)
+
             entries.append(entry)
 
         if len(entries) > 0:
@@ -227,7 +231,8 @@ class RaftConsensus(Consensus):
             self.updateLogMetadata()
 
         response.term = self.currentTerm
-        response.granted = request.term == self.currentTerm and self.votedFor == request.server_id
+        response.granted = request.term == self.currentTerm \
+            and self.votedFor == request.server_id
         self.mutex.release()
         pass
 
@@ -310,19 +315,29 @@ class RaftConsensus(Consensus):
     def testThreadMain(self):
         logger.debug('testThreadMain. sleeping for 60 seconds')
         time.sleep(60)
-        logger.debug('testThreadMain. starting test')
-        self.mutex.acquire()
-        while not self.exiting:
-            entry = Entry()
-            entry.term = self.currentTerm
-            entry.type = DATA
-            entry.data = 'T' * 8192
-            self.append(entry)
-            self.mutex.release()
-            time.sleep(0.01)
-            self.mutex.acquire()
+        if self.state != LEADER:
+            return
 
+        logger.debug('testThreadMain. starting test')
+        SIZE = 8192
+        while not self.exiting:
+            self.replicatedWrite('/tmp/foo', 0, SIZE, 'T' * SIZE)
+            time.sleep(0.01)
+
+    def replicatedWrite(self, file, offset, length, payload):
+        entry = Entry()
+        entry.type = WRITE
+        entry.write.file = file
+        entry.write.offset = offset
+        entry.write.length = length
+        entry.write.type = COMPRESSED
+        entry.write.payload = zlib.compress(payload)
+        self.mutex.acquire()  
+        entry.term = self.currentTerm
+        self.append(entry)
         self.mutex.release()
+        
+        return
 
     def leaderDiskThreadMain(self):
         self.mutex.acquire()
