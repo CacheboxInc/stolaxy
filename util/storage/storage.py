@@ -34,20 +34,74 @@ class Storage(object):
             return
 
         found = False
-        for vgline in out.split('\n'):
+        for vgline in out.splitlines():
             vgline = vgline.strip().split(',')
             vgname = vgline[0]
             if vgname == STOLAXY_FLASH_TIER_VOLUME_GROUP:
                 found = True
                 break
             
-        if not found:
-            print 'creating %s' % STOLAXY_FLASH_TIER_VOLUME_GROUP
+        #
+        # ignore all devices which are either already a part of the
+        # FLASH_TIER_VOLUME_GROUP or a different volume group
+        #
 
-        for device in self.devices:
-            pass
+        cmd = (
+            "pvdisplay",
+            "-C",
+            "--noheadings",
+            "--separator=','",
+            "--units",
+            "b"
+            )
+        
+        pvdisplay = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        out, err = pvdisplay.communicate()
+        if pvdisplay.returncode != 0:
+            print 'WARNING: error running pvdisplay: %s, %s' % (out, err)
+            return
+
+        existing = []
+        for pvline in out.splitlines():
+            pvline = pvline.strip().split(',')
+            device = pvline[0]
+            vg = pvline[1]
+            existing.append(device)
             
+        newdevices = []
+        for device in self.devices:
+            if device in existing:
+                continue
+            
+            newdevices.append(device)
 
+        if not found and len(newdevices) == 0:
+            print 'ERROR: insufficient storage. please provision flash based devices and restart'
+            return
+
+        if not found:
+            cmd = (
+                "vgcreate",
+                STOLAXY_FLASH_TIER_VOLUME_GROUP,
+                ' '.join(newdevices)
+                )
+        else:
+            cmd = (
+                "vgextend",
+                STOLAXY_FLASH_TIER_VOLUME_GROUP,
+                ' '.join(newdevices)
+                )
+            
+        op = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+        out, err = op.communicate()
+        if op.returncode != 0:
+            print 'WARNING: error running vgcreate/vgextend: %s, %s' % (out, err)
+            return
+
+        # TBD. create volume 
+
+        print 'storage layer initialized successfully'
+        
 if __name__ == '__main__':
     storage = Storage()
     storage.initialize()
