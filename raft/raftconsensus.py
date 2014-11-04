@@ -183,9 +183,6 @@ class RaftConsensus(Consensus):
                 self.log.truncateSuffix(entryId - 1)
                 self.configurationManager.truncateSuffix(entryId - 1)
 
-            if entry.type == WRITE and entry.write.type == COMPRESSED:
-                print zlib.decompress(entry.write.payload)
-
             entries.append(entry)
 
         if len(entries) > 0:
