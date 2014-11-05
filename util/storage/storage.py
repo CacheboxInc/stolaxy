@@ -48,7 +48,7 @@ class Storage(object):
             "pvdisplay",
             "-C",
             "--noheadings",
-            "--separator=','",
+            "--separator=,",
             "--units",
             "b"
             )
@@ -113,7 +113,7 @@ class Storage(object):
             "lvdisplay",
             "-C",
             "--noheadings",
-            "--separator=','",
+            "--separator=,",
             "--units",
             "b"
             )
