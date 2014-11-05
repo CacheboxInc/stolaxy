@@ -6,10 +6,8 @@ STOLAXY_FLASH_TIER_VOLUME = 'stolaxy_flash_vol01'
 
 class Storage(object):
     def __init__(self):
-        self.devices = discover()
-
-    def discover(self):
-        self.devices = discover()
+        self.discover = Discover()
+        self.devices = self.discover.getDevices()
 
     def initialize(self):
         """
@@ -75,22 +73,29 @@ class Storage(object):
             
             newdevices.append(device)
 
-        if not found and len(newdevices) == 0:
+        flash_devices = []
+        device_types = self.discover.discover(newdevices)
+        for device, iops, type in device_types:
+            if type == 'FLASH':
+                flash_devices.append(device)
+            
+        if not found and len(flash_devices) == 0:
             print 'ERROR: insufficient storage. please provision flash based devices and restart'
             return
 
         if not found:
-            cmd = (
+            cmd = [
                 "vgcreate",
-                STOLAXY_FLASH_TIER_VOLUME_GROUP,
-                ' '.join(newdevices)
-                )
+                STOLAXY_FLASH_TIER_VOLUME_GROUP
+                ]
+            cmd += flash_devices
         else:
-            cmd = (
+            cmd = [
                 "vgextend",
-                STOLAXY_FLASH_TIER_VOLUME_GROUP,
-                ' '.join(newdevices)
-                )
+                STOLAXY_FLASH_TIER_VOLUME_GROUP
+                ]
+            
+            cmd += flash_devices
             
         op = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
         out, err = op.communicate()
