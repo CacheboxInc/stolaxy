@@ -13,5 +13,4 @@ class Storage(object):
         print 'storage initialized successfully.'
         
 if __name__ == '__main__':
-    storage = Storage()
-    storage.initialize()
+    Storage().initialize()
