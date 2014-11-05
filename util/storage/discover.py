@@ -7,7 +7,7 @@ volumes.
 import subprocess
 import sys
 
-FLASH_RAND_READ_IOPS = 20000
+from config import *
 
 class Discover(object):
 
