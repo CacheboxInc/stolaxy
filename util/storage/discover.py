@@ -29,7 +29,7 @@ class Discover(object):
                 "-q",
                 "32",
                 "-t",
-                "3"
+                "30"
              	)
 
             iops = 0
