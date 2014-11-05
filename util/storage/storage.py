@@ -19,7 +19,7 @@ class Storage(object):
             "vgdisplay", 
             "-C",
             "--noheadings",
-            "--separator=','",
+            "--separator=,",
             "--nosuffix",
             "--units",
             "b"
@@ -78,11 +78,15 @@ class Storage(object):
         for device, iops, type in device_types:
             if type == 'FLASH':
                 flash_devices.append(device)
-            
+
         if not found and len(flash_devices) == 0:
-            print 'ERROR: insufficient storage. please provision flash based devices and restart'
+            print 'ERROR: insufficient storage. please provision flash based devices and restart.'
+            return
+        elif found and len(flash_devices) == 0:
+            print 'INFO: initialized stolaxy storage subsystem successfully. no new devices detected.'
             return
 
+        
         if not found:
             cmd = [
                 "vgcreate",
