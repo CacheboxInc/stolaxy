@@ -29,7 +29,7 @@ class Volume(object):
         out, err = vgdisplay.communicate()
         if vgdisplay.returncode != 0:
             print 'WARNING: error running vgdisplay: %s, %s' % (out, err)
-            return
+            return False
 
         found = False
         for vgline in out.splitlines():
@@ -57,7 +57,7 @@ class Volume(object):
         out, err = pvdisplay.communicate()
         if pvdisplay.returncode != 0:
             print 'WARNING: error running pvdisplay: %s, %s' % (out, err)
-            return
+            return False
 
         existing = []
         for pvline in out.splitlines():
@@ -81,10 +81,10 @@ class Volume(object):
 
         if not found and len(flash_devices) == 0:
             print 'ERROR: insufficient storage. please provision flash based devices and restart.'
-            return
+            return False
         elif found and len(flash_devices) == 0:
             print 'INFO: initialized stolaxy storage subsystem successfully. no new devices detected.'
-            return
+            return True
 
         
         if not found:
@@ -105,7 +105,7 @@ class Volume(object):
         out, err = op.communicate()
         if op.returncode != 0:
             print 'WARNING: error running vgcreate/vgextend: %s, %s' % (out, err)
-            return
+            return False
 
         cmd = (
             "lvdisplay",
@@ -120,7 +120,7 @@ class Volume(object):
         out, err = lvdisplay.communicate()
         if lvdisplay.returncode != 0:
             print 'WARNING: error running lvdisplay: %s, %s' % (out, err)
-            return
+            return False
 
         found = False
 
@@ -154,4 +154,7 @@ class Volume(object):
         out, err = op.communicate()
         if op.returncode != 0:
             print 'WARNING: error running lvcreate/lvextend: %s, %s' % (out, err)
-            return
+            return False
+
+        return True
+

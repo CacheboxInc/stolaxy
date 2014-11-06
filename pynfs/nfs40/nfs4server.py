@@ -26,6 +26,8 @@ if  __name__ == "__main__":
     if os.path.isfile(os.path.join(sys.path[0], 'lib', 'testmod.py')):
         sys.path.insert(1, os.path.join(sys.path[0], 'lib'))
 
+sys.path.insert(1, './lib')
+
 import datetime
 import getopt
 import logging
@@ -43,13 +45,7 @@ from nfs4state import NFS4Error, printverf
 from xdrlib import Error as XDRError
 
 from args import args, parser
-
-sys.path.insert(0, '../../concoord-1.1.0/')
-
-import concoord
-from concoord.enums import *
-from concoord.safetychecker import *
-from concoord.proxygenerator import *
+from nfs_pb2 import *
 
 unacceptable_names = [ "", ".", ".." ]
 unacceptable_characters = [ "/", "~", "#", ]
@@ -128,6 +124,7 @@ class NFS4Server(rpc.RPCServer):
         self.rootfh = rootfh
         self.pubfh = pubfh
         self.verfnum = 0
+        self.replica = ReplicaTarget()
 
     def handle_0(self, data, cred):
         logger.info("******** TCP RPC NULL CALL ********")
@@ -973,7 +970,22 @@ class NFS4Server(rpc.RPCServer):
     def op_illegal(self, op):
         return simple_error(NFS4ERR_OP_ILLEGAL)
 
-def startup(host, port, directory):
+    def callback(self, blob):
+        nfsop = NFSOP()
+        nfsop.ParseFromString(blob)
+        if nfsop.opcode == OP_CREATE_FILE:
+            return self.replica.op_create(nfsop.createfile.filename)
+        else:
+            assert 0, 'TBD'
+        
+class ReplicaTarget(object):
+    def op_create(self, filename):
+        fd = os.open(filename, os.O_CREAT)
+        os.close(fd)
+        return True
+
+        
+def startup(host, port, directory, raft = None):
     if htype == 'VIRTUAL_HANDLE':
         rootfh = nfs4state.VirtualHandle()
     elif htype == 'HARD_HANDLE':
@@ -981,7 +993,7 @@ def startup(host, port, directory):
     elif htype == 'NULL_HANDLE':
         rootfh = nfs4state.NULLHandle(None, "/", None, directory)
     elif htype == 'REPLICA_HANDLE':
-        rootfh = nfs4state.ReplicaHandle(None, "/", None, directory)
+        rootfh = nfs4state.ReplicaHandle(None, "/", None, directory, raft)
     else:
         assert 0, "unknown htype"
 
@@ -996,19 +1008,13 @@ def startup(host, port, directory):
         pass
     logger.debug("Python NFSv4 Server, (c) CITI, Regents of the University of Michigan")
     logger.debug("Starting Server, root handle: %s" % rootfh)
+    return server
 
-    if args.addr:
-        node = getattr(
-            __import__('concoord.replica', globals(), locals(), -1), 'Replica')()
-        node.startservice()
-        signal.signal(signal.SIGINT, node.terminate_handler)
-        signal.signal(signal.SIGTERM, node.terminate_handler)
-        #signal.pause()
-    server.run()
-    try:
-        server.unregister()
-    except:
-        pass
+    # server.run()
+    # try:
+    #     server.unregister()
+    # except:
+    #     pass
 
 if __name__ == "__main__":
     port = 2049

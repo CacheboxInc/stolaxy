@@ -1,0 +1,31 @@
+enum WriteType {
+     NORMAL = 0;
+     COMPRESSED = 1;
+     ENCRYPTED = 2;
+     COMPRESSED_ENCRYPTED = 3;
+     ZERO = 4;
+     DISCARD = 5;
+};
+
+message Write {
+    required string file = 1;
+    required uint64 offset = 2;
+    required uint64 length = 3;
+    required WriteType type = 4; 
+    optional bytes payload = 5;
+}
+
+message CreateFile {
+    required string filename = 2;
+    optional string permissions = 3;
+};
+
+enum OpCode {
+    OP_CREATE_FILE = 0;
+};
+
+message NFSOP {
+    required OpCode opcode = 1;
+    optional CreateFile createfile = 2;
+    optional Write write = 3;
+};

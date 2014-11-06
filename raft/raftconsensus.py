@@ -55,6 +55,16 @@ class RaftConsensus(Consensus):
         t = threading.Thread(target = self.rpcHandlerThread)
         t.start()
 
+    def replicate(self, blob):
+        entry = Entry()
+        entry.type = DATA
+        entry.data = blob
+        self.mutex.acquire()
+        entry.term = self.currentTerm
+        self.append(entry)
+        self.mutex.release()
+        return True
+
     def init(self, serverId):
         self.mutex.acquire()
         self.serverId = serverId
@@ -233,9 +243,6 @@ class RaftConsensus(Consensus):
         self.mutex.release()
         pass
 
-    def replicate(self):
-        pass
-
     def setConfiguration(self, oldId, members):
         self.mutex.acquire()
         if self.state != LEADER:
@@ -329,7 +336,7 @@ class RaftConsensus(Consensus):
         entry.write.length = length
         entry.write.type = COMPRESSED
         entry.write.payload = zlib.compress(payload)
-        self.mutex.acquire()  
+        self.mutex.acquire() 
         entry.term = self.currentTerm
         self.append(entry)
         self.mutex.release()
@@ -492,6 +499,9 @@ class RaftConsensus(Consensus):
             if entry.type == CONFIGURATION:
                 self.configurationManager.add(index, entry.configuration)
                 pass
+            elif entry.type == DATA and self.state is not LEADER:
+                self.callback(entry.data)
+
             index += 1
 
         self.stateChanged.notifyAll()

@@ -25,7 +25,14 @@ def usage():
 
 class Stolaxy(Daemon):
     def startnfs(self, raft):
-	    nfsstartup('', 2049, STOLAXY_BACKEND_XFS_FLASH_TIER, raft)
+	    server = nfsstartup('', 2049, STOLAXY_BACKEND_XFS_FLASH_TIER, raft)
+	    raft.callback = server.callback
+	    server.run()
+	    try:
+		    server.unregister()
+	    except:
+		    pass
+
 
     def run(self):
 	    storage = Storage()
@@ -44,7 +51,7 @@ class Stolaxy(Daemon):
 
 	    nfs = threading.Thread(target = self.startnfs, kwargs = {'raft':raft})
 	    nfs.start()
-
+	    
 	    nfs.join()
 	    reconfig.join()
 	    

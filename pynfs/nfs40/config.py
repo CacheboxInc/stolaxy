@@ -1,1 +1,1 @@
-htype = 'HARD_HANDLE'
+htype = 'REPLICA_HANDLE'

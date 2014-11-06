@@ -21,7 +21,8 @@ import shutil
 logger = logging.getLogger('nfslog')
 
 from args import args as sargs
-from nfshandleproxy import NFSHandle
+
+from nfs_pb2 import *
 
 cdll.LoadLibrary("libc.so.6")
 libc = CDLL("libc.so.6")
@@ -1830,6 +1831,14 @@ class NULLHandle(HardHandle):
 
 
 class ReplicaHandle(HardHandle):
+    def __init__(self, filesystem, name, parent, file, raft = None):
+        HardHandle.__init__(self, filesystem, name, parent, file)
+        if parent:
+            self.raft = parent.raft
+        else:
+            assert raft is not None
+            self.raft = raft
+
     def create(self, name, type, attrs={}):
         """ Create a file of given type with given attrs, return attrs set
 
@@ -1841,11 +1850,20 @@ class ReplicaHandle(HardHandle):
             raise "create called on non-directory (%s)" % self.ref
         if os.path.exists(fullfile):
             raise "attempted to create already existing file."
-        rnfs = NFSHandle("%s:%s" % (sargs.addr, sargs.port))
+
+        nfsop = NFSOP()
+
         if type.type == NF4DIR:
             rnfs.mkdir(fullfile)
         else:
-            rnfs.create(fullfile)
+            nfsop.opcode = OP_CREATE_FILE
+            nfsop.createfile.filename = fullfile
+
+            fd = os.open(fullfile, os.O_CREAT)
+            os.close(fd)
+
+            ret = self.raft.replicate(nfsop.SerializeToString())
+            
         fh = handle(None, name, self, fullfile)
         if FATTR4_SIZE in attrs and type.type != NF4REG:
             del attrs[FATTR4_SIZE]

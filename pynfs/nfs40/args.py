@@ -22,4 +22,10 @@ parser.add_argument("-d", "--debug", action="store_true", dest="debug", default=
                     help="debug on/off")
 parser.add_argument("-e", "--export", action="store", dest="export", default='/tmp',
                     help="path to export")
+parser.add_argument('-a1', "--address", action="store", dest="address", default=None,
+                    help="path to export")
+parser.add_argument('-a2', "--serverid", action="store", dest="serverid", default=None,
+                    help="path to export")
+parser.add_argument('-a3', "--name", action="store", dest="name", default=None,
+                    help="path to export")
 args = parser.parse_args()

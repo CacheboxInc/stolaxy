@@ -25,7 +25,6 @@
 # Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 
-
 import rpc
 import threading
 from xdrlib import Error as XDRError

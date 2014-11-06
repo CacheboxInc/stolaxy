@@ -24,7 +24,7 @@ class Discover(object):
 		# straightforward declare device as SSD
 
             cmd = (
-                "./cbperf",
+                "/usr/bin/cbperf",
                 disk,
                 "-q",
                 "32",
@@ -84,7 +84,7 @@ class Discover(object):
         for partition in partitions:
             major, minor, size, dev = partition.split()
             device = '/dev/%s' % dev
-            if int(minor) % 16 != 0 or major == dmmajor or 'sr' in device or device in mounts:
+            if int(minor) % 16 != 0 or int(major) == dmmajor or 'sr' in device or device in mounts:
                 if delete:
                     devices.pop()
                     delete = False
@@ -92,7 +92,6 @@ class Discover(object):
 
             devices.append(device)
             delete = True
-            
             #print major, minor, size, device
 
         return devices
