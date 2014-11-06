@@ -55,15 +55,29 @@ class RaftConsensus(Consensus):
         t = threading.Thread(target = self.rpcHandlerThread)
         t.start()
 
-    def replicate(self, blob):
+    def replicate(self, blob, blocking = False):
+        """
+        replicate the blob to peers. if blocking is true, the blob is
+        guaranteed to be applied to peer logs before the call returns.
+        """
+
+        assert self.state == LEADER
+
         entry = Entry()
         entry.type = DATA
         entry.data = blob
         self.mutex.acquire()
         entry.term = self.currentTerm
         self.append(entry)
+        if blocking:
+            index = self.log.getLastLogIndex()
+            while not self.exiting and self.currentTerm == entry.term:
+                if self.commitIndex >= index:
+                    break
+                self.stateChanged.wait()
+        
         self.mutex.release()
-        return True
+        return
 
     def init(self, serverId):
         self.mutex.acquire()
@@ -498,15 +512,13 @@ class RaftConsensus(Consensus):
         for entry in entries:
             if entry.type == CONFIGURATION:
                 self.configurationManager.add(index, entry.configuration)
-                pass
             elif entry.type == DATA and self.state is not LEADER:
                 self.callback(entry.data)
 
             index += 1
 
         self.stateChanged.notifyAll()
-        pass
-
+        
     def appendEntries(self, peer):
         lastLogIndex = self.log.getLastLogIndex()
         prevLogIndex = peer.nextIndex - 1
