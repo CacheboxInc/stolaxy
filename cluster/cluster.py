@@ -65,8 +65,8 @@ class Cluster(object):
 # Asynchronous part, works in the background
 
 PING_PORT_NUMBER    = 9999
-PING_INTERVAL       = 2.0  # Once per second
-PEER_EXPIRY         = 12.0  # Five seconds and it's gone
+PING_INTERVAL       = 16.0
+PEER_EXPIRY         = 16.0
 BYTES          = 128
 
 class Peer(object):
