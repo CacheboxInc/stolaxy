@@ -5,7 +5,7 @@ INTRODUCTION
 stolaxy is an attempt to put together a quick storage appliance with
 the following capabilities.
 
-1. NFS Server
+1. NFS Server/iSCSI
 2. Distributed datastore (replicated)
 3. Tiering
 4. Deduplication
@@ -21,22 +21,35 @@ fast prototyping.
 
 HOW TO USE THIS PROJECT
 
-1. NFS Server: the nfs server can be started as follows: 
+1. checkout from git https://github.com/muralinagaraj/stolaxy.git and
+make. This will take care of building all the components. If you would
+rather use the virtual appliance instead contact us.
 
-set the path to the rsm directory and concoord distribution in the
-PYTHONPATH before starting the nfs server.
+There are a few dependencies which are loosely listed below in the
+dependencies section, please ensure the development environment is
+setup.
 
-export PYTHONPATH=$PYTHONPATH:~/src/sandbox/stolaxy/rsm/:~/src/sandbox/stolaxy/concoord-1.1.0/
-python pynfs/nfs4.0/nfs4server.py -a 192.168.2.45 -p 14000 -o nfshandle.NFSHandle --export=/tmp/
+2. To start the stolaxy service manually go to the server directory
+and issue the following command
 
--a = the IP address of the localhost
--p = use 14000 for now.
---export = specify the folder you want to export via nfs
--o nfshandle.NFSHandle
+# python stolaxy.py 
+stolaxy.py --address=<ipaddress> --serverid=<serverid> --name=<clustername>
 
-this is on the first node, the remaining nodes should pass a -b
-<IPADDRESS:14000> of the master node from where to bootstrap. this is
-ugly for now but needs to be fixed.
+WARNING: this is under development and the way the stolaxy instance is
+started is likely to change.
+
+--address is the ipaddress of the interface used for clustering,
+  --serverid is a unique numeric server identifier e.g 1, and --name
+  --is the name of the clsuter - this has to be the same on all the
+  --nodes for peer nodes to join the cluster.
+
+
+e.g. suppose you want to start a 3 node replicated shared nothing nfs
+server you can do this as follows
+
+node1 # python stolaxy.py --address=192.168.56.1 --serverid=1 --name=mycluster
+node2 # python stolaxy.py --address=192.168.56.2 --serverid=2 --name=mycluster
+node3 # python stolaxy.py --address=192.168.56.3 --serverid=3 --name=mycluster
 
 DEPENDENCIES
 
@@ -44,3 +57,5 @@ DEPENDENCIES
 2. pip install pyzmq
 3. apt-get install python-protobuf
 4. apt-get install cython # for caio bindings
+5. libkrb5-dev
+6. libaio-dev
