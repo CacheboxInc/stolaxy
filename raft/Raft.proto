@@ -77,23 +77,6 @@ message Configuration {
     optional SimpleConfiguration next_configuration = 2;
 }
 
-enum WriteType {
-     NORMAL = 0;
-     COMPRESSED = 1;
-     ENCRYPTED = 2;
-     COMPRESSED_ENCRYPTED = 3;
-     ZERO = 4;
-     DISCARD = 5;
-};
-
-message Write {
-    required string file = 1;
-    required uint64 offset = 2;
-    required uint64 length = 3;
-    required WriteType type = 4; 
-    optional bytes payload = 5;
-}
-
 /**
  * The type of payload stored in a log entry.
  */
@@ -111,7 +94,6 @@ enum EntryType {
      */
     NOOP = 3;
 
-    WRITE = 4;
 };
 
 /**
@@ -136,7 +118,6 @@ message Entry {
      */
     optional bytes data = 4;
     
-    optional Write write = 5;
 }
 
 message RPC {
