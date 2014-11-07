@@ -58,24 +58,27 @@ class RaftConsensus(Consensus):
     def replicate(self, blob, blocking = False, timeout = 0):
         """
         replicate the blob to peers. if blocking is true, the blob is
-        guaranteed to be applied to peer logs before the call
-        returns. returns True when the logs are successfully
-        replicated. timeout is specified in seconds. if nonzero then
-        the replicate call returns in approximately timeout
-        seconds. Note: return value of false is not a guarantee that
-        the operation failed. the caller should ensure that the
-        operation is idempotent before issuing a retry.
+        guaranteed to be applied to peer logs before the call returns,
+        except when combined with timeout. returns True when the logs
+        are successfully replicated. timeout is specified in
+        seconds. if nonzero then the replicate call returns in
+        approximately timeout seconds. Note: return value of false is
+        not a guarantee that the operation failed. the caller should
+        ensure that the operation is idempotent before issuing a
+        retry.
         """
         assert self.state == LEADER
 
-        ret = False
+        ret = True
         entry = Entry()
         entry.type = DATA
         entry.data = blob
         self.mutex.acquire()
         entry.term = self.currentTerm
         self.append(entry)
+
         if blocking:
+            ret = False
             if timeout != 0:
                 start = datetime.datetime.now()
             index = self.log.getLastLogIndex()
