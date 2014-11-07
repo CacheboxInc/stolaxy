@@ -7,25 +7,34 @@ enum WriteType {
      DISCARD = 5;
 };
 
-message Write {
-    required string file = 1;
-    required uint64 offset = 2;
-    required uint64 length = 3;
-    required WriteType type = 4; 
-    optional bytes payload = 5;
-}
-
-message CreateFile {
+message Create {
     required string filename = 2;
     optional string permissions = 3;
 };
 
+message Write {
+    required string filename = 3;
+    required uint64 offset = 4;
+    required uint64 length = 5;
+    required WriteType type = 6; 
+    optional bytes payload = 7;
+}
+
+message Remove {
+    required string filename = 4;
+};
+
 enum OpCode {
     OP_CREATE_FILE = 0;
+    OP_CREATE_DIR = 1;
+    OP_WRITE_DATA = 2;
+    OP_REMOVE_FILE = 3;
+    OP_REMOVE_DIR = 4;
 };
 
 message NFSOP {
     required OpCode opcode = 1;
-    optional CreateFile createfile = 2;
+    optional Create create = 2;
     optional Write write = 3;
+    optional Remove remove = 4;
 };

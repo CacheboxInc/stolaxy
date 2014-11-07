@@ -18,6 +18,8 @@ import logging
 from stat import *
 import sha
 import shutil
+import zlib
+
 logger = logging.getLogger('nfslog')
 
 from args import args as sargs
@@ -1839,6 +1841,39 @@ class ReplicaHandle(HardHandle):
             assert raft is not None
             self.raft = raft
 
+    def set_fattr4_size(self, newsize):
+        if self.fattr4_type == NF4REG and (newsize != self.fattr4_size or newsize == 0):
+            nfsop = NFSOP()
+            if newsize <= self.fattr4_size:
+        	nfsop.opcode = OP_WRITE_DATA
+	        nfsop.write.filename = self.file
+	        nfsop.write.offset = 0
+	        nfsop.write.length = newsize
+	        nfsop.write.type = DISCARD
+        	nfsop.write.payload = ''
+
+                fd = open(self.file, "a+")
+                fd.truncate(newsize)
+                fd.close()
+            else:
+                # Pad with zeroes
+        	nfsop.opcode = OP_WRITE_DATA
+	        nfsop.write.filename = self.file
+	        nfsop.write.offset = 0
+	        nfsop.write.length = newsize
+	        nfsop.write.type = ZERO
+        	nfsop.write.payload = ''
+
+                fd = os.open(self.file, os.O_RDWR)
+                size = newsize - self.fattr4_size
+                sz = libc.pwrite(fd, chr(0) * size, size, self.fattr4_size)
+                os.close(fd)
+            ret = self.raft.replicate(nfsop.SerializeToString())
+            self.fattr4_size = newsize
+            self.fattr4_time_modify = converttime()
+        else:
+            raise NFS4Error(NFS4ERR_INVAL)
+
     def create(self, name, type, attrs={}):
         """ Create a file of given type with given attrs, return attrs set
 
@@ -1854,10 +1889,15 @@ class ReplicaHandle(HardHandle):
         nfsop = NFSOP()
 
         if type.type == NF4DIR:
-            rnfs.mkdir(fullfile)
+            nfsop.opcode = OP_CREATE_DIR
+            nfsop.create.filename = fullfile
+
+            os.mkdir(fullfile)
+
+            ret = self.raft.replicate(nfsop.SerializeToString())
         else:
             nfsop.opcode = OP_CREATE_FILE
-            nfsop.createfile.filename = fullfile
+            nfsop.create.filename = fullfile
 
             fd = os.open(fullfile, os.O_CREAT)
             os.close(fd)
@@ -1887,11 +1927,93 @@ class ReplicaHandle(HardHandle):
 
         self.fattr4_change += 1
 
-        rnfs = NFSHandle("%s:%s" % (sargs.addr, sargs.port))
-        size = rnfs.write(self.file, data, offset)
+        nfsop = NFSOP()
+
+        nfsop.opcode = OP_WRITE_DATA
+        nfsop.write.filename = self.file
+        nfsop.write.offset = offset
+        nfsop.write.length = len(data)
+        nfsop.write.type = COMPRESSED
+        nfsop.write.payload = zlib.compress(data)
+
+        fd = os.open(self.file, os.O_RDWR)
+        size = libc.pwrite(fd, data, len(data), offset)
+        os.close(fd)
+
+        ret = self.raft.replicate(nfsop.SerializeToString())
+
         self.fattr4_time_metadata = converttime()
         self.fattr4_size += size
-        return len(data) 
+        return size
+
+    def remove(self, target):
+        fullfile = os.path.join(self.file, target)
+        if not os.path.exists(fullfile):
+            raise "cannot find  file."
+        stat_struct = os.stat(fullfile)
+        self.fattr4_change += 1
+        file = self.dirent[target]
+        del self.dirent[target]
+        file.fattr4_numlinks -= 1
+        file.fattr4_change += 1
+        file.fattr4_time_metadata = converttime()
+        file.destruct()
+        self.fattr4_size = len(self.dirent)
+        self.fattr4_time_modify = converttime()
+        self.fattr4_time_metadata = converttime()
+
+        nfsop = NFSOP()
+        if S_ISDIR(stat_struct.st_mode):
+            nfsop.opcode = OP_REMOVE_DIR
+            nfsop.remove.filename = fullfile
+
+            shutil.rmtree(fullfile)
+
+            ret = self.raft.replicate(nfsop.SerializeToString())
+        elif S_ISLNK(stat_struct.st_mode):
+            os.unlink(fullfile) 
+        else:
+            nfsop.opcode = OP_REMOVE_FILE
+            nfsop.remove.filename = fullfile
+
+            os.remove(fullfile)
+
+            ret = self.raft.replicate(nfsop.SerializeToString())
+
+    def cb_create(self, opcode, filename):
+        if opcode == OP_CREATE_FILE:
+            fd = os.open(filename, os.O_CREAT)
+            os.close(fd)
+        if opcode == OP_CREATE_DIR:
+            os.mkdir(filename)
+        return True
+
+    def cb_remove(self, opcode, filename):
+        if opcode == OP_REMOVE_FILE:
+            os.remove(filename)
+        if opcode == OP_REMOVE_DIR:
+            shutil.rmtree(filename)
+        return True
+
+    def cb_write(self, filename, offset, length, wtype, payload):
+        if wtype == COMPRESSED:
+            data = zlib.decompress(payload)
+            fd = os.open(filename, os.O_RDWR)
+            size = libc.pwrite(fd, data, length, offset)
+            os.close(fd)
+            return size
+        if wtype == DISCARD:
+            fd = open(filename, "a+")
+            fd.truncate(length)
+            fd.close()
+        if wtype == ZERO:
+            stat_struct = os.stat(filename)
+            old_size = stat_struct.st_size
+            fd = os.open(filename, os.O_RDWR)
+            size = length - old_size
+            sz = libc.pwrite(fd, chr(0) * size, size, old_size)
+            os.close(fd)
+        return True
 
 class DirList:
     def __init__(self):
