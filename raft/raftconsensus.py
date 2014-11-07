@@ -346,21 +346,6 @@ class RaftConsensus(Consensus):
     def snapshotDone(self):
         pass
 
-    def replicatedWrite(self, file, offset, length, payload):
-        entry = Entry()
-        entry.type = WRITE
-        entry.write.file = file
-        entry.write.offset = offset
-        entry.write.length = length
-        entry.write.type = COMPRESSED
-        entry.write.payload = zlib.compress(payload)
-        self.mutex.acquire() 
-        entry.term = self.currentTerm
-        self.append(entry)
-        self.mutex.release()
-        
-        return
-
     def leaderDiskThreadMain(self):
         self.mutex.acquire()
         while not self.exiting:
