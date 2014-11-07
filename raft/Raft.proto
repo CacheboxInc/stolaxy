@@ -222,6 +222,7 @@ message AppendEntries {
          * True if new entries were added to the log.
          */
         required bool success = 3;
+	optional uint64 last_log_index = 5;
 	optional uint64 message_number = 4;
     }
 }
