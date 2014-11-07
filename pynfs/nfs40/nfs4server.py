@@ -26,8 +26,6 @@ if  __name__ == "__main__":
     if os.path.isfile(os.path.join(sys.path[0], 'lib', 'testmod.py')):
         sys.path.insert(1, os.path.join(sys.path[0], 'lib'))
 
-sys.path.insert(1, './lib')
-
 import datetime
 import getopt
 import logging
@@ -124,7 +122,6 @@ class NFS4Server(rpc.RPCServer):
         self.rootfh = rootfh
         self.pubfh = pubfh
         self.verfnum = 0
-        self.replica = ReplicaTarget()
 
     def handle_0(self, data, cred):
         logger.info("******** TCP RPC NULL CALL ********")
@@ -973,17 +970,13 @@ class NFS4Server(rpc.RPCServer):
     def callback(self, blob):
         nfsop = NFSOP()
         nfsop.ParseFromString(blob)
-        if nfsop.opcode == OP_CREATE_FILE:
-            return self.replica.op_create(nfsop.createfile.filename)
-        else:
-            assert 0, 'TBD'
-        
-class ReplicaTarget(object):
-    def op_create(self, filename):
-        fd = os.open(filename, os.O_CREAT)
-        os.close(fd)
-        return True
-
+        if nfsop.opcode in [OP_CREATE_FILE, OP_CREATE_DIR]:
+            return self.rootfh.cb_create(nfsop.opcode, nfsop.create.filename)
+        elif nfsop.opcode in [OP_REMOVE_FILE, OP_REMOVE_DIR]:
+            return self.rootfh.cb_remove(nfsop.opcode, nfsop.remove.filename)
+        elif nfsop.opcode == OP_WRITE_DATA:
+            return self.rootfh.cb_write(nfsop.write.filename, nfsop.write.offset, \
+                            nfsop.write.length, nfsop.write.type, nfsop.write.payload)
         
 def startup(host, port, directory, raft = None):
     if htype == 'VIRTUAL_HANDLE':
