@@ -1831,8 +1831,43 @@ class NULLHandle(HardHandle):
             raise "write called on non file!"
         return len(data)
 
+class CallBackProxy(object):
+    def cb_create(self, opcode, filename):
+        if opcode == OP_CREATE_FILE:
+            fd = os.open(filename, os.O_CREAT)
+            os.close(fd)
+        if opcode == OP_CREATE_DIR:
+            os.mkdir(filename)
+        return True
 
-class ReplicaHandle(HardHandle):
+    def cb_remove(self, opcode, filename):
+        if opcode == OP_REMOVE_FILE:
+            os.remove(filename)
+        if opcode == OP_REMOVE_DIR:
+            shutil.rmtree(filename)
+        return True
+
+    def cb_write(self, filename, offset, length, wtype, payload):
+        if wtype == COMPRESSED:
+            data = zlib.decompress(payload)
+            fd = os.open(filename, os.O_RDWR)
+            size = libc.pwrite(fd, data, length, offset)
+            os.close(fd)
+            return size
+        if wtype == DISCARD:
+            fd = open(filename, "a+")
+            fd.truncate(length)
+            fd.close()
+        if wtype == ZERO:
+            stat_struct = os.stat(filename)
+            old_size = stat_struct.st_size
+            fd = os.open(filename, os.O_RDWR)
+            size = length - old_size
+            sz = libc.pwrite(fd, chr(0) * size, size, old_size)
+            os.close(fd)
+        return True
+
+class ReplicaHandle(HardHandle, CallBackProxy):
     def __init__(self, filesystem, name, parent, file, raft = None):
         HardHandle.__init__(self, filesystem, name, parent, file)
         if parent:
@@ -1979,41 +2014,6 @@ class ReplicaHandle(HardHandle):
             os.remove(fullfile)
 
             ret = self.raft.replicate(nfsop.SerializeToString())
-
-    def cb_create(self, opcode, filename):
-        if opcode == OP_CREATE_FILE:
-            fd = os.open(filename, os.O_CREAT)
-            os.close(fd)
-        if opcode == OP_CREATE_DIR:
-            os.mkdir(filename)
-        return True
-
-    def cb_remove(self, opcode, filename):
-        if opcode == OP_REMOVE_FILE:
-            os.remove(filename)
-        if opcode == OP_REMOVE_DIR:
-            shutil.rmtree(filename)
-        return True
-
-    def cb_write(self, filename, offset, length, wtype, payload):
-        if wtype == COMPRESSED:
-            data = zlib.decompress(payload)
-            fd = os.open(filename, os.O_RDWR)
-            size = libc.pwrite(fd, data, length, offset)
-            os.close(fd)
-            return size
-        if wtype == DISCARD:
-            fd = open(filename, "a+")
-            fd.truncate(length)
-            fd.close()
-        if wtype == ZERO:
-            stat_struct = os.stat(filename)
-            old_size = stat_struct.st_size
-            fd = os.open(filename, os.O_RDWR)
-            size = length - old_size
-            sz = libc.pwrite(fd, chr(0) * size, size, old_size)
-            os.close(fd)
-        return True
 
 class DirList:
     def __init__(self):
