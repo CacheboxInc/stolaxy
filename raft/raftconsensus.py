@@ -55,14 +55,20 @@ class RaftConsensus(Consensus):
         t = threading.Thread(target = self.rpcHandlerThread)
         t.start()
 
-    def replicate(self, blob, blocking = False):
+    def replicate(self, blob, blocking = False, timeout = 0):
         """
         replicate the blob to peers. if blocking is true, the blob is
-        guaranteed to be applied to peer logs before the call returns.
+        guaranteed to be applied to peer logs before the call
+        returns. returns True when the logs are successfully
+        replicated. timeout is specified in seconds. if nonzero then
+        the replicate call returns in approximately timeout
+        seconds. Note: return value of false is not a guarantee that
+        the operation failed. the caller should ensure that the
+        operation is idempotent before issuing a retry.
         """
-
         assert self.state == LEADER
 
+        ret = False
         entry = Entry()
         entry.type = DATA
         entry.data = blob
@@ -70,14 +76,24 @@ class RaftConsensus(Consensus):
         entry.term = self.currentTerm
         self.append(entry)
         if blocking:
+            if timeout != 0:
+                start = datetime.datetime.now()
             index = self.log.getLastLogIndex()
             while not self.exiting and self.currentTerm == entry.term:
                 if self.commitIndex >= index:
+                    ret = True
                     break
-                self.stateChanged.wait()
+
+                if timeout != 0:
+                    self.stateChanged.wait(timeout)
+                else:
+                    self.stateChanged.wait()
         
+                if (datetime.datetime.now() - start).seconds >= timeout:
+                    break
+
         self.mutex.release()
-        return
+        return ret
 
     def init(self, serverId):
         self.mutex.acquire()
@@ -106,9 +122,6 @@ class RaftConsensus(Consensus):
         self.stepDownThread = threading.Thread(target = self.stepDownThreadMain)
         self.stepDownThread.start()
             
-        # self.testThread = threading.Thread(target = self.testThreadMain)
-        # self.testThread.start()
-
         self.stateChanged.notifyAll()
         self.mutex.release()
 
@@ -330,18 +343,6 @@ class RaftConsensus(Consensus):
     def snapshotDone(self):
         pass
 
-    def testThreadMain(self):
-        logger.debug('testThreadMain. sleeping for 60 seconds')
-        time.sleep(60)
-        if self.state != LEADER:
-            return
-
-        logger.debug('testThreadMain. starting test')
-        SIZE = 8192
-        while not self.exiting:
-            self.replicatedWrite('/tmp/foo', 0, SIZE, 'T' * SIZE)
-            time.sleep(0.01)
-
     def replicatedWrite(self, file, offset, length, payload):
         entry = Entry()
         entry.type = WRITE
@@ -443,8 +444,6 @@ class RaftConsensus(Consensus):
             rpc.ParseFromString(message)
             response = None
 
-            logger.debug('received RPC: %d, message_number: %s' % (
-                    rpc.opcode, rpc.message_number))
             if rpc.opcode == APPEND_ENTRIES:
                 ae = AppendEntries.Request()
                 ae.ParseFromString(message)
@@ -459,9 +458,6 @@ class RaftConsensus(Consensus):
 
             if response:
                 handler.send(response.SerializeToString())
-            
-            logger.debug('completed RPC: %d, message_number: %s' % (
-                    rpc.opcode, rpc.message_number))
             
     def advanceCommittedId(self):
         if self.state != LEADER:
@@ -483,6 +479,7 @@ class RaftConsensus(Consensus):
             if not self.configuration.hasVote(self.configuration.localServer):
                 self.stepDown(self.currentTerm + 1)
                 return
+
         if self.configuration.state == TRANSITIONAL:
             entry = Entry()
             entry.term = self.currentTerm
@@ -560,18 +557,9 @@ class RaftConsensus(Consensus):
         epoch = self.currentEpoch
         start = datetime.datetime.now()
 
-        if numEntries:
-            logger.debug('sending message with payload: %s, message_number: %s' % (
-                    peer.address, request.message_number))
-        else:
-            logger.debug('sending heartbeat: %s, message_number: %s' % (
-                    peer.address, request.message_number))
-
         message = peer.callRPC(request, self.mutex)
         response = AppendEntries.Response()
         response.ParseFromString(message)        
-        logger.debug('rpc returned: %s, message_number: %s' % (
-                peer.address, response.message_number))
 
         assert request.message_number == response.message_number
 
