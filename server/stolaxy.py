@@ -33,7 +33,6 @@ class Stolaxy(Daemon):
 	    except:
 		    pass
 
-
     def run(self):
 	    storage = Storage()
 	    if not storage.initialize():
@@ -46,10 +45,16 @@ class Stolaxy(Daemon):
 
 	    cluster = Cluster(name, serverid)
 	    raft = RaftConsensus(serverid, address)
-	    reconfig = threading.Thread(target = reconfigurations, kwargs = {'raft':raft, 'cluster':cluster})
+	    reconfig = threading.Thread(
+		    target = reconfigurations,
+		    kwargs = {'raft':raft, 'cluster':cluster}
+		    )
 	    reconfig.start()
 
-	    nfs = threading.Thread(target = self.startnfs, kwargs = {'raft':raft})
+	    nfs = threading.Thread(
+		    target = self.startnfs,
+		    kwargs = {'raft':raft}
+		    )
 	    nfs.start()
 	    
 	    nfs.join()

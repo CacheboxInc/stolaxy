@@ -170,6 +170,7 @@ class RaftConsensus(Consensus):
         response.term = self.currentTerm
         response.success = False
         response.message_number = request.message_number
+        response.last_log_index = self.log.getLastLogIndex()
         
         if request.term < self.currentTerm:
             self.mutex.release()
@@ -508,7 +509,7 @@ class RaftConsensus(Consensus):
         lastLogIndex = self.log.getLastLogIndex()
         prevLogIndex = peer.nextIndex - 1
         assert prevLogIndex <= lastLogIndex
-        
+
         if peer.nextIndex < self.log.getLogStartIndex():
             self.appendSnapshotChunk(peer)
             return
@@ -535,7 +536,7 @@ class RaftConsensus(Consensus):
         numEntries = 0
         if not peer.forceHeartbeat:
             entryId = peer.nextIndex
-            while entryId <= lastLogIndex:
+            while entryId <= lastLogIndex and numEntries < MAX_ENTRIES:
                 entry = self.log.getEntry(entryId)
                 request.entries.extend([entry])
                 entryId += 1
@@ -581,13 +582,15 @@ class RaftConsensus(Consensus):
                         peer.thisCatchUpIterationGoalId = self.log.getLastLogIndex()
                     pass
             else:
-                if peer.nextIndex > 1:
-                    peer.nextIndex -= 1
+                if response.last_log_index > self.log.getLogStartIndex():
+                    peer.nextIndex = response.last_log_index
+                else:
+                    peer.nextIndex = self.log.getLogStartIndex()
 
         pass
 
-    def appendSnapshotChunk(self):
-        assert 0
+    def appendSnapshotChunk(self, peer):
+        #assert 0
         pass
 
     def becomeLeader(self):
