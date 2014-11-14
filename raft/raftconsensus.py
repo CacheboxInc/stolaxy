@@ -10,7 +10,6 @@ from config import *
 from configuration import SimpleConfiguration
 from configuration import Configuration as XConfiguration
 from configuration import ConfigurationManager
-from consensus import Consensus
 from memorylog import MemoryLog
 from Raft_pb2 import *
 
@@ -24,9 +23,10 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 logger = logging.getLogger('raft')
 logger.setLevel(logging.INFO)
 
-class RaftConsensus(Consensus):
+class RaftConsensus(object):
     def __init__(self, serverId, serverAddress):
-        Consensus.__init__(self, serverId, serverAddress)
+        self.serverAddress = serverAddress
+        self.serverId = serverId
         self.mutex = threading.Lock()
         self.stateChanged = threading.Condition(self.mutex)
         self.exiting = False

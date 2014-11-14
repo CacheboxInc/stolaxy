@@ -84,10 +84,13 @@ class Discover(object):
         for partition in partitions:
             major, minor, size, dev = partition.split()
             device = '/dev/%s' % dev
-            if int(minor) % 16 != 0 or int(major) == dmmajor or 'sr' in device or device in mounts:
+            if int(minor) % 16 != 0:
                 if delete:
                     devices.pop()
                     delete = False
+                continue
+            if int(major) == dmmajor or 'sr' in device or device in mounts:
+                delete = False
                 continue
 
             devices.append(device)
