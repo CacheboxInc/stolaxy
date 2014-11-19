@@ -608,6 +608,10 @@ class HardHandle(NFSFileHandle):
             os.unlink(fullfile) 
         else:
             os.remove(fullfile)
+        if self.dirent.has_key(fullfile):
+            del self.dirent[fullfile]
+        if self.dirent.has_key(target):
+            del self.dirent[target]
 
     def rmdir(self, target):
         fullfile = os.path.join(self.file, target)
