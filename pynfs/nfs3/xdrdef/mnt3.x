@@ -66,3 +66,12 @@ program MOUNT_PROGRAM {
                 exports         MOUNTPROC3_EXPORT(void) = 5;
         } = 3;
 } = 100005;
+
+enum mnt_opnum3 {
+    MOUNT3PROC_NULL = 0,
+    MOUNT3PROC_MNT  = 1,
+    MOUNT3PROC_DUMP = 2,
+    MOUNT3PROC_UMNT = 3,
+    MOUNT3PROC_UMNTALL = 4,
+    MOUNT3PROC_EXPORT = 5
+};

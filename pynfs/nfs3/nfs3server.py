@@ -49,7 +49,6 @@ from args import args, parser
 
 unacceptable_names = [ "", ".", ".." ]
 unacceptable_characters = [ "/", "~", "#", ]
-#unacceptable_unicode_values = [ 0xd800, 0xdb7f, 0xdb80, 0xdb80, 0xdbff, 0xdc00, 0xdf80, 0xdfff, 0xFFFE, 0xFFFF ];
 
 logfile = "nfs_%s.log" % datetime.datetime.today().strftime('%Y%m%d')
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -122,7 +121,7 @@ class MNT3Server(rpc.RPCServer):
         self.fhcache = {}
         self.rootfh = rootfh
 
-    def handle_0(self, data, cred):
+    def mount3proc_null(self, data, cred):
         logger.info("******** TCP RPC NULL CALL ********")
         logger.info("  flavor = %i" % cred.flavor)
         if cred.flavor == rpc.RPCSEC_GSS:
@@ -136,11 +135,15 @@ class MNT3Server(rpc.RPCServer):
         else:
             return rpc.SUCCESS, ''
 
-    def handle_1(self, data, cred):
+    def handle_request(self, data, cred, op):
+        opname = mnt_opnum3.get(op, 'mountproc3_null').lower()
+        if op == 0:
+            return getattr(self, opname.lower())(data, cred)
         self.mnt3unpacker.reset(data)
-        args = self.mnt3unpacker.unpack_dirpath()
-        resok = mountres3_ok(fhandle=self.rootfh.file, auth_flavors=[AUTH_NONE, AUTH_SYS])
-        result = mountres3(fhs_status=MNT3_OK, mountinfo = resok)
+        func = getattr(self, opname.lower(), None)
+        if not func:
+            return rpc.PROG_UNAVAIL, ''
+        result = getattr(self, opname.lower())(data, cred)
         try:
             self.mnt3unpacker.done()
         except XDRError:
@@ -148,8 +151,15 @@ class MNT3Server(rpc.RPCServer):
             raise
             return rpc.GARBAGE_ARGS, ''
         self.mnt3packer.reset()
-        self.mnt3packer.pack_mountres3(result)
+        ret = str(result).split("(")[0]
+        getattr(self.mnt3packer, "pack_%s" % ret)(result)
         return rpc.SUCCESS, self.mnt3packer.get_buffer()
+ 
+    def mount3proc_mnt(self, data, cred):
+        args = self.mnt3unpacker.unpack_dirpath()
+        resok = mountres3_ok(fhandle=self.rootfh.file, auth_flavors=[AUTH_NONE, AUTH_SYS])
+        result = mountres3(fhs_status=MNT3_OK, mountinfo = resok)
+        return result
 
 class NFS3Server(rpc.RPCServer):
     def __init__(self, rootfh, host, port, pubfh = None):
@@ -162,7 +172,7 @@ class NFS3Server(rpc.RPCServer):
         self.pubfh = pubfh
         self.verfnum = 0
 
-    def handle_0(self, data, cred):
+    def nfs3proc_null(self, data, cred):
         logger.info("******** TCP RPC NULL CALL ********")
         logger.info("  flavor = %i" % cred.flavor)
         if cred.flavor == rpc.RPCSEC_GSS:
@@ -191,27 +201,39 @@ class NFS3Server(rpc.RPCServer):
                             mtime=self.curr_fh.fattr3_mtime,
                             ctime=self.curr_fh.fattr3_ctime
                            )
-    
-    def handle_1(self, data, cred):
+
+    def handle_request(self, data, cred, op):
+        opname = nfs_opnum3.get(op, 'nfsproc3_null').lower()
+        if op == 0:
+            return getattr(self, opname.lower())(data, cred)
         self.nfs3unpacker.reset(data)
+        func = getattr(self, opname.lower(), None)
+        if not func:
+            return rpc.PROG_UNAVAIL, ''
+        result = getattr(self, opname.lower())(data, cred)
+        try:
+            self.nfs3unpacker.done()
+        except XDRError:
+            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
+            return rpc.GARBAGE_ARGS, ''
+        if result is None:
+            logger.error("NFS operation(%s) not supported" % opname)
+            return rpc.GARBAGE_ARGS, ''
+        self.nfs3packer.reset()
+        ret = str(result).split("(")[0]
+        getattr(self.nfs3packer, "pack_%s" % ret)(result)
+        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+    
+    def nfs3proc_getattr(self, data, cred):
         args = self.nfs3unpacker.unpack_GETATTR3args()
         self.curr_fh = self.rootfh.lookup(str(args.object.data))
         status = NFS3_OK
         attributes = self._get_fattr3_attributes()
         resok = GETATTR3resok(obj_attributes=attributes)
-        result = GETATTR3res(status=NFS3_OK, resok=resok)    
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_GETATTR3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        result = GETATTR3res(status=NFS3_OK, resok=resok)
+        return result
 
-    def handle_2(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_setattr(self, data, cred):
         args = self.nfs3unpacker.unpack_SETATTR3args()
         self.curr_fh = self.rootfh.lookup(str(args.object.data))
         attributes = self._get_fattr3_attributes()
@@ -248,18 +270,9 @@ class NFS3Server(rpc.RPCServer):
         resok = SETATTR3resok(obj_wcc=obj_wcc)
         resfail = SETATTR3resfail(obj_wcc=obj_wcc)
         result = SETATTR3res(status=status, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_SETATTR3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_3(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_lookup(self, data, cred):
         args = self.nfs3unpacker.unpack_LOOKUP3args()
         self.curr_fh = self.rootfh.lookup(str(args.what.dir.data))
         attributes = self._get_fattr3_attributes()
@@ -275,18 +288,9 @@ class NFS3Server(rpc.RPCServer):
                                  obj_attributes=post_obj_file_attr, dir_attributes=post_dir_obj_attr)
         resfail = LOOKUP3resfail(dir_attributes=post_dir_obj_attr)
         result = LOOKUP3res(status=status, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_LOOKUP3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_4(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_access(self, data, cred):
         args = self.nfs3unpacker.unpack_ACCESS3args()
         self.curr_fh = self.rootfh.lookup(str(args.object.data))
         attributes = self._get_fattr3_attributes()
@@ -297,28 +301,12 @@ class NFS3Server(rpc.RPCServer):
         resok = ACCESS3resok(obj_attributes=post_obj_attr, access=args.access)
         resfail = ACCESS3resfail(obj_attributes=post_obj_attr)
         result = ACCESS3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_ACCESS3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_5(self, data, cred):
-        logger.error(" *** NFSPROC3_READLINK called *** ")
-        self.nfs3unpacker.reset(data)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-        return rpc.GARBAGE_ARGS, ''
+    def nfs3proc_readlink(self, data, cred):
+        return None
 
-    def handle_6(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_read(self, data, cred):
         args = self.nfs3unpacker.unpack_READ3args()
         self.curr_fh = self.rootfh.lookup(str(args.file.data))
         buf = self.curr_fh.read(args.offset, args.count)
@@ -330,18 +318,9 @@ class NFS3Server(rpc.RPCServer):
         resok = READ3resok(file_attributes=obj_attr, count=len(buf), eof=eof, data=buf)
         resfail = READ3resfail(file_attributes=obj_attr)
         result = READ3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_READ3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
  
-    def handle_7(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_write(self, data, cred):
         args = self.nfs3unpacker.unpack_WRITE3args()
         self.curr_fh = self.rootfh.lookup(str(args.file.data))
         attributes = self._get_fattr3_attributes()
@@ -353,18 +332,9 @@ class NFS3Server(rpc.RPCServer):
         resok = WRITE3resok(file_wcc=obj_wcc, count=size, committed=args.stable, verf=self.curr_fh.write_verifier)
         resfail = WRITE3resfail(file_wcc=obj_wcc)
         result = WRITE3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_WRITE3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_8(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_create(self, data, cred):
         args = self.nfs3unpacker.unpack_CREATE3args()
         self.curr_fh = self.rootfh.lookup(str(args.where.dir.data))
         attributes = self._get_fattr3_attributes()
@@ -385,18 +355,9 @@ class NFS3Server(rpc.RPCServer):
         resok = CREATE3resok(obj=pfh3_obj, obj_attributes=post_obj_file_attr, dir_wcc=obj_wcc)
         resfail = CREATE3resfail(dir_wcc=obj_wcc)
         result = CREATE3res(status=NFS3_OK, resok=resok, resfail=resfail) 
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_CREATE3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_9(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_mkdir(self, data, cred):
         args = self.nfs3unpacker.unpack_MKDIR3args()
         self.curr_fh = self.rootfh.lookup(str(args.where.dir.data))
         attributes = self._get_fattr3_attributes()
@@ -415,39 +376,16 @@ class NFS3Server(rpc.RPCServer):
         post_obj_file_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
         resok = MKDIR3resok(obj=pfh3_obj, obj_attributes=post_obj_file_attr, dir_wcc=obj_wcc)
         resfail = MKDIR3resfail(dir_wcc=obj_wcc)
-        result = MKDIR3res(status=NFS3_OK, resok=resok, resfail=resfail) 
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_MKDIR3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        result = MKDIR3res(status=NFS3_OK, resok=resok, resfail=resfail)
+        return result
 
-    def handle_10(self, data, cred):
-        logger.error(" *** NFSPROC3_SYMLINK called *** ")
-        self.nfs3unpacker.reset(data)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-        return rpc.GARBAGE_ARGS, ''
+    def nfs3proc_symlink(self, data, cred):
+        return None
 
-    def handle_11(self, data, cred):
-        logger.error(" *** NFSPROC3_MKNOD called *** ")
-        self.nfs3unpacker.reset(data)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-        return rpc.GARBAGE_ARGS, ''
+    def nfs3proc_mknod(self, data, cred):
+        return None
 
-    def handle_12(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_remove(self, data, cred):
         args = self.nfs3unpacker.unpack_REMOVE3args()
         self.curr_fh = self.rootfh.lookup(str(args.dir.data))
         attributes = self._get_fattr3_attributes()
@@ -459,18 +397,9 @@ class NFS3Server(rpc.RPCServer):
         resok = REMOVE3resok(dir_wcc=obj_wcc)
         resfail = REMOVE3resfail(dir_wcc=obj_wcc)
         result = REMOVE3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_REMOVE3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_13(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_rmdir(self, data, cred):
         args = self.nfs3unpacker.unpack_RMDIR3args()
         self.curr_fh = self.rootfh.lookup(str(args.dir.data))
         attributes = self._get_fattr3_attributes()
@@ -482,18 +411,9 @@ class NFS3Server(rpc.RPCServer):
         resok = RMDIR3resok(dir_wcc=obj_wcc)
         resfail = RMDIR3resfail(dir_wcc=obj_wcc)
         result = RMDIR3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_RMDIR3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_14(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_rename(self, data, cred):
         args = self.nfs3unpacker.unpack_RENAME3args()
         self.curr_fh = self.rootfh.lookup(str(args.fromfile.dir.data))
         attributes = self._get_fattr3_attributes()
@@ -518,28 +438,12 @@ class NFS3Server(rpc.RPCServer):
         resok = RENAME3resok(fromdir_wcc=from_obj_wcc, todir_wcc=to_obj_wcc)
         resfail = RENAME3resfail(fromdir_wcc=from_obj_wcc, todir_wcc=to_obj_wcc)
         result = RENAME3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_RENAME3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_15(self, data, cred):
-        logger.error(" *** NFSPROC3_LINK called *** ")
-        self.nfs3unpacker.reset(data)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-        return rpc.GARBAGE_ARGS, ''
+    def nfs3proc_link(self, data, cred):
+        return None
         
-    def handle_16(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_readdir(self, data, cred):
         args = self.nfs3unpacker.unpack_READDIR3args()
         cookie = args.cookie
         cookieverf = args.cookieverf
@@ -592,18 +496,9 @@ class NFS3Server(rpc.RPCServer):
         resok = READDIR3resok(dir_attributes=post_obj_attr, cookieverf=verifier, reply=d3)
         resfail = READDIR3resfail(dir_attributes=post_obj_attr)
         result = READDIR3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_READDIR3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_17(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_readdirplus(self, data, cred):
         args = self.nfs3unpacker.unpack_READDIRPLUS3args()
         cookie = args.cookie
         cookieverf = args.cookieverf
@@ -661,28 +556,12 @@ class NFS3Server(rpc.RPCServer):
         resok = READDIRPLUS3resok(dir_attributes=post_obj_attr, cookieverf=verifier, reply=d3)
         resfail = READDIRPLUS3resfail(dir_attributes=post_obj_attr)
         result = READDIRPLUS3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_READDIRPLUS3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_18(self, data, cred):
-        logger.error(" *** NFSPROC3_FSSTAT called *** ")
-        self.nfs3unpacker.reset(data)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-        return rpc.GARBAGE_ARGS, ''
+    def nfs3proc_fsstat(self, data, cred):
+        return None
 
-    def handle_19(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_fsinfo(self, data, cred):
         args = self.nfs3unpacker.unpack_FSINFOargs()
         self.curr_fh = self.rootfh.lookup(str(args.fsroot.data))
         attributes = self._get_fattr3_attributes()
@@ -701,20 +580,10 @@ class NFS3Server(rpc.RPCServer):
                             )
 
         resfail = FSINFO3resfail(obj_attributes=obj_attr)
-
         result = FSINFO3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_FSINFO3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_20(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_pathconf(self, data, cred):
         args = self.nfs3unpacker.unpack_PATHCONF3args()
         self.curr_fh = self.rootfh.lookup(str(args.object.data))
         attributes = self._get_fattr3_attributes()
@@ -729,18 +598,9 @@ class NFS3Server(rpc.RPCServer):
                               )
         resfail = PATHCONF3resfail(obj_attributes=obj_attr)
         result = PATHCONF3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_PATHCONF3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
-    def handle_21(self, data, cred):
-        self.nfs3unpacker.reset(data)
+    def nfs3proc_commit(self, data, cred):
         args = self.nfs3unpacker.unpack_COMMIT3args()
         self.curr_fh = self.rootfh.lookup(str(args.file.data))
         attributes = self._get_fattr3_attributes()
@@ -752,15 +612,7 @@ class NFS3Server(rpc.RPCServer):
         resok = COMMIT3resok(file_wcc=obj_wcc, verf=self.curr_fh.write_verifier)
         resfail = COMMIT3resfail(file_wcc=obj_wcc)
         result = COMMIT3res(status=NFS3_OK, resok=resok, resfail=resfail)
-        try:
-            self.nfs3unpacker.done()
-        except XDRError:
-            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
-            raise
-            return rpc.GARBAGE_ARGS, ''
-        self.nfs3packer.reset()
-        self.nfs3packer.pack_COMMIT3res(result)
-        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+        return result
 
 def startnfs3server(rootfh, port=2049, host='', pubfh=None, raft = None):
     server = NFS3Server(rootfh, port=port, host=host, pubfh=directory)
