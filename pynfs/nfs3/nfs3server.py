@@ -233,7 +233,7 @@ class NFS3Server(rpc.RPCServer):
             attributes = self._get_fattr3_attributes(self.curr_fh)
             status = NFS3_OK
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_getattr : %s" % e)
             attributes = {}
             status = e.code
         resok = GETATTR3resok(obj_attributes=attributes)
@@ -247,9 +247,6 @@ class NFS3Server(rpc.RPCServer):
             self.curr_fh = self.rootfh.lookup(str(args.object.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
-
-            if self.curr_fh.get_type() != NF3REG:
-                raise NFS3Error(NFS3ERR_BADTYPE)
 
             attributes = self._get_fattr3_attributes(self.curr_fh)
             pre_obj_attr = pre_op_attr(attributes_follow=TRUE, attributes=attributes)
@@ -283,8 +280,15 @@ class NFS3Server(rpc.RPCServer):
             obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = SETATTR3resok(obj_wcc=obj_wcc)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_setattr : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = None
         resfail = SETATTR3resfail(obj_wcc=obj_wcc)
         result = SETATTR3res(status=status, resok=resok, resfail=resfail)
@@ -314,8 +318,13 @@ class NFS3Server(rpc.RPCServer):
             else:
                 raise NFS3Error(NFS3ERR_NOENT)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_lookup : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                post_dir_obj_attr
+            except:
+                post_dir_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
         resfail = LOOKUP3resfail(dir_attributes=post_dir_obj_attr)
         result = LOOKUP3res(status=status, resok=resok, resfail=resfail)
@@ -334,8 +343,13 @@ class NFS3Server(rpc.RPCServer):
                 raise NFS3Error(NFS3ERR_ACCES)
             resok = ACCESS3resok(obj_attributes=post_obj_attr, access=args.access)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_access : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                post_obj_attr
+            except:
+                post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
         resfail = ACCESS3resfail(obj_attributes=post_obj_attr)
         result = ACCESS3res(status=status, resok=resok, resfail=resfail)
@@ -357,16 +371,21 @@ class NFS3Server(rpc.RPCServer):
                 raise NFS3Error(NFS3ERR_INVAL)
             buf = self.curr_fh.read(args.offset, args.count)
             attributes = self._get_fattr3_attributes(self.curr_fh)
-            obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
             eof = 1
             if (len(buf) < args.count):
                 eof = 0
-            resok = READ3resok(file_attributes=obj_attr, count=len(buf), eof=eof, data=buf)
+            resok = READ3resok(file_attributes=post_obj_attr, count=len(buf), eof=eof, data=buf)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_read : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                post_obj_attr
+            except:
+                post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
-        resfail = READ3resfail(file_attributes=obj_attr)
+        resfail = READ3resfail(file_attributes=post_obj_attr)
         result = READ3res(status=NFS3_OK, resok=resok, resfail=resfail)
         return result
  
@@ -374,7 +393,6 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_WRITE3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.file.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             if self.curr_fh.get_type() == NF3DIR:
@@ -389,8 +407,15 @@ class NFS3Server(rpc.RPCServer):
             obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = WRITE3resok(file_wcc=obj_wcc, count=size, committed=args.stable, verf=self.curr_fh.write_verifier)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_write : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = None
         resfail = WRITE3resfail(file_wcc=obj_wcc)
         result = WRITE3res(status=status, resok=resok, resfail=resfail)
@@ -425,8 +450,15 @@ class NFS3Server(rpc.RPCServer):
             post_obj_file_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
             resok = CREATE3resok(obj=pfh3_obj, obj_attributes=post_obj_file_attr, dir_wcc=obj_wcc)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_create : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = None
         resfail = CREATE3resfail(dir_wcc=obj_wcc)
         result = CREATE3res(status=status, resok=resok, resfail=resfail) 
@@ -458,8 +490,15 @@ class NFS3Server(rpc.RPCServer):
             post_obj_file_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
             resok = MKDIR3resok(obj=pfh3_obj, obj_attributes=post_obj_file_attr, dir_wcc=obj_wcc)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_mkdir : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = None
         resfail = MKDIR3resfail(dir_wcc=obj_wcc)
         result = MKDIR3res(status=status, resok=resok, resfail=resfail)
@@ -489,8 +528,15 @@ class NFS3Server(rpc.RPCServer):
             obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = REMOVE3resok(dir_wcc=obj_wcc)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_remove : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = None
         resfail = REMOVE3resfail(dir_wcc=obj_wcc)
         result = REMOVE3res(status=status, resok=resok, resfail=resfail)
@@ -513,8 +559,15 @@ class NFS3Server(rpc.RPCServer):
             obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = RMDIR3resok(dir_wcc=obj_wcc)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_rmdir : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = None
         resfail = RMDIR3resfail(dir_wcc=obj_wcc)
         result = RMDIR3res(status=status, resok=resok, resfail=resfail)
@@ -548,8 +601,21 @@ class NFS3Server(rpc.RPCServer):
 
             resok = RENAME3resok(fromdir_wcc=from_obj_wcc, todir_wcc=to_obj_wcc)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_rename : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_from_obj_attr
+            except:
+                pre_from_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            try:
+                pre_to_obj_attr
+            except:
+                pre_to_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_from_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_to_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            from_obj_wcc = wcc_data(before=pre_from_obj_attr, after=post_from_obj_attr)
+            to_obj_wcc = wcc_data(before=pre_to_obj_attr, after=post_to_obj_attr)
             resok = None
         resfail = RENAME3resfail(fromdir_wcc=from_obj_wcc, todir_wcc=to_obj_wcc)
         result = RENAME3res(status=status, resok=resok, resfail=resfail)
@@ -602,15 +668,18 @@ class NFS3Server(rpc.RPCServer):
                 e3 = [entry3(fileid=entry.fattr3_fileid, name=entry.name, cookie=entry.cookie, nextentry=e3)]
             if len(entries) < len(dirlist):
                 d3 = dirlist3(entries=e3, eof=0)
+                del self.curr_fh.cookies[cookie]
             else:
                 d3 = dirlist3(entries=e3, eof=1)
+            attributes = self._get_fattr3_attributes(self.curr_fh)
+            post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+            resok = READDIR3resok(dir_attributes=post_obj_attr, cookieverf=verifier, reply=d3)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_readdir : %s" % e)
             status = e.code
+            attributes = {}
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
-        attributes = self._get_fattr3_attributes(self.curr_fh)
-        post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
-        resok = READDIR3resok(dir_attributes=post_obj_attr, cookieverf=verifier, reply=d3)
         resfail = READDIR3resfail(dir_attributes=post_obj_attr)
         result = READDIR3res(status=status, resok=resok, resfail=resfail)
         return result
@@ -630,7 +699,6 @@ class NFS3Server(rpc.RPCServer):
             if cookie != 0:
                 if cookieverf != verifier:
                     raise NFS3Error(NFS3ERR_BAD_COOKIE)
-
             try:
                 dirlist = self.curr_fh.read_dir(cookie)
             except IndexError:
@@ -660,19 +728,21 @@ class NFS3Server(rpc.RPCServer):
             # Encode entries as linked list
             e3 = []
             for entry in entries:
-                e3 = [entryplus3(fileid=entry.fattr3_fileid, name=entry.name, cookie=entry.cookie, 
+                e3 = [entryplus3(fileid=entry.fattr3_fileid, name=entry.name, cookie=entry.cookie,
                                 name_attributes=entry.attr, name_handle=entry.name_handle, nextentry=e3)]
             if len(entries) < len(dirlist):
                 d3 = dirlistplus3(entries=e3, eof=0)
             else:
                 d3 = dirlistplus3(entries=e3, eof=1)
+            attributes = self._get_fattr3_attributes(self.curr_fh)
+            post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+            resok = READDIRPLUS3resok(dir_attributes=post_obj_attr, cookieverf=verifier, reply=d3)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_readdirplus : %s" % e)
             status = e.code
+            attributes = {}
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
-        attributes = self._get_fattr3_attributes(self.curr_fh)
-        post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
-        resok = READDIRPLUS3resok(dir_attributes=post_obj_attr, cookieverf=verifier, reply=d3)
         resfail = READDIRPLUS3resfail(dir_attributes=post_obj_attr)
         result = READDIRPLUS3res(status=status, resok=resok, resfail=resfail)
         return result
@@ -688,8 +758,8 @@ class NFS3Server(rpc.RPCServer):
             if self.curr_fh is None:
                 raise NFS3Error(NFS3ERR_NOENT)
             attributes = self._get_fattr3_attributes(self.curr_fh)
-            obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
-            resok = FSINFO3resok(obj_attributes=obj_attr,
+            post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+            resok = FSINFO3resok(obj_attributes=post_obj_attr,
                                  rtmax=self.curr_fh.fattr3_rtmax,
                                  rtpref=self.curr_fh.fattr3_rtpref,
                                  rtmult=self.curr_fh.fattr3_rtmult,
@@ -702,10 +772,15 @@ class NFS3Server(rpc.RPCServer):
                                  properties=self.curr_fh.fattr3_properties
                                 )
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_fsinfo : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                post_obj_attr
+            except:
+                post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
-        resfail = FSINFO3resfail(obj_attributes=obj_attr)
+        resfail = FSINFO3resfail(obj_attributes=post_obj_attr)
         result = FSINFO3res(status=status, resok=resok, resfail=resfail)
         return result
 
@@ -717,8 +792,8 @@ class NFS3Server(rpc.RPCServer):
             if self.curr_fh is None:
                 raise NFS3Error(NFS3ERR_NOENT)
             attributes = self._get_fattr3_attributes(self.curr_fh)
-            obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
-            resok = PATHCONF3resok(obj_attributes=obj_attr,
+            post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+            resok = PATHCONF3resok(obj_attributes=post_obj_attr,
                                    linkmax=0, 
                                    name_max=NFS3_FHSIZE,
                                    no_trunc=TRUE,
@@ -727,10 +802,15 @@ class NFS3Server(rpc.RPCServer):
                                    case_preserving=TRUE
                                   )
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_pathconf : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                post_obj_attr
+            except:
+                post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
-        resfail = PATHCONF3resfail(obj_attributes=obj_attr)
+        resfail = PATHCONF3resfail(obj_attributes=post_obj_attr)
         result = PATHCONF3res(status=status, resok=resok, resfail=resfail)
         return result
 
@@ -743,14 +823,21 @@ class NFS3Server(rpc.RPCServer):
                 raise NFS3Error(NFS3ERR_NOENT)
             attributes = self._get_fattr3_attributes(self.curr_fh)
             pre_obj_attr = pre_op_attr(attributes_follow=TRUE, attributes=attributes)
-            self.curr_fh.commit(self, args.offset, args.count)
+            self.curr_fh.commit(args.offset, args.count)
             attributes = self._get_fattr3_attributes(self.curr_fh)
             post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
             obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = COMMIT3resok(file_wcc=obj_wcc, verf=self.curr_fh.write_verifier)
         except NFS3Error as e:
-            logger.error(e)
+            logger.error("nfs3proc_commit : %s" % e)
             status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
             resok = None
         resfail = COMMIT3resfail(file_wcc=obj_wcc)
         result = COMMIT3res(status=status, resok=resok, resfail=resfail)
