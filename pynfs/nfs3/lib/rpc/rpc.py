@@ -525,7 +525,7 @@ class RPCServer(Server):
         self.sockets = {}
         self.s.listen(5)
 
-    def handle_0(self, data, cred):
+    def handle_request(self, data, cred, op):
         if data != '':
             return GARBAGE_ARGS, ''
         else:
@@ -545,7 +545,7 @@ class RPCServer(Server):
         self.packetbufs[cfd] = []
         self.recordbufs[cfd] = []
         self.sockets[cfd] = csock
-        
+ 
     def event_read(self, fd, data, debug=0):
         """Reads incoming record marked packets
 
@@ -673,17 +673,20 @@ class RPCServer(Server):
             areply = accepted_reply(verf,
                                     rpc_reply_data(PROG_MISMATCH,
                                                    mismatch_info=mismatch))
-        elif not hasattr(self, "handle_%i" % call.proc):
+        elif not hasattr(self, "handle_request"):
             verf = self.security[flavor].make_reply_verf(cred, PROG_UNAVAIL)
             areply = accepted_reply(verf, rpc_reply_data(PROC_UNAVAIL))
-        # Call appropriate handle_*
         else:
-            method = getattr(self, "handle_%i" % call.proc)
-            a_stat, proc_response = method(meth_data, cred)
-            verf = self.security[flavor].make_reply_verf(cred, a_stat)
-            if a_stat == SUCCESS:
-                proc_response = self.security[flavor].secure_data(proc_response, cred)
-            areply = accepted_reply(verf, rpc_reply_data(a_stat, ''))
+            method = getattr(self, "handle_request")
+            a_stat, proc_response = method(meth_data, cred, call.proc)
+            if a_stat == PROG_UNAVAIL:
+                verf = self.security[flavor].make_reply_verf(cred, PROG_UNAVAIL)
+                areply = accepted_reply(verf, rpc_reply_data(PROC_UNAVAIL))
+            else:
+                verf = self.security[flavor].make_reply_verf(cred, a_stat)
+                if a_stat == SUCCESS:
+                    proc_response = self.security[flavor].secure_data(proc_response, cred)
+                areply = accepted_reply(verf, rpc_reply_data(a_stat, ''))
         # Build reply
         body = reply_body(reply_stat, areply, rreply)
         msg = rpc_msg(recv_msg.xid, rpc_msg_body(REPLY, rbody=body))

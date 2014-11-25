@@ -18,7 +18,6 @@ if  __name__ == "__main__":
 import rpcgen
 
 def needs_updating(xdrfile):
-    return False
     gen_path = os.path.join(topdir, 'lib', 'rpcgen.py')
     name_base = xdrfile[:xdrfile.rfind("xdrdef")]
     sources = [gen_path, xdrfile]

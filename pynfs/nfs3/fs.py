@@ -96,210 +96,6 @@ def printverf(verifier):
 
 #########################################################################
 
-
-class NFSFileState:
-    """Holds file state info"""
-    def __init__(self):
-        self.locks = {}  # form {id: [LockInfo, ...]}
-        self.shares = {} # form {id : [3bit_access, 3bit_deny]}
-        self.access = 0  # Use external 2-bit format
-        self.deny = 0    # Use external 2-bit format
-
-    class LockInfo:
-        def __init__(self, type, start, end):
-            self.type = type # bit 0:  0=WRITE 1=READ
-            self.start = start
-            self.end = end
-            if start < 0 or end < start:
-                raise ValueError, "Bad values for start and end (%s, %s)" % \
-                                  (start, end)
-
-        def __repr__(self):
-            if self.type & 1: str = "READ"
-            else: str = "WRITE"
-            return "%sLOCK: %i to %i" % (str, self.start, self.end)
-
-        def __cmp__(self, other):
-            if type(other) == type(5):
-                other = self.LockInfo(0, other, self.end)
-            if not isinstance(other, NFSFileState.LockInfo):
-                return NotImplemented
-            if self.start < other.start: return -1
-            elif self.start > other.start: return 1
-            elif self.end < other.end: return -1
-            elif self.end > other.end: return 1
-            else: return 0
-
-        def overlaps(self, start, end):
-            """Returns True if given range overlaps that of lock"""
-            return start <= self.start <= end or \
-                   self.start <= start <= self.end
-
-    def __2to3(self, value):
-        """Change 2 bit external value to 3 bit internal"""
-        value &= 3
-        if value: return 2 ** (value-1)
-        else: return 0
-
-    def __3to2(self, value):
-        """Change 3 bit internal value to 2 bit external"""
-        if value & 4: return 3
-        else: return value & 3
-        
-    def downshares(self, id, access, deny):
-        """Downgrade shares.  access == deny == 0 removes shares completely"""
-        if id not in self.shares:
-            if access != 0 or deny != 0:
-                raise "Unknown id"
-            else:
-                return
-        old_access = self.shares[id][0]
-        old_deny = self.shares[id][1]
-        new_access = self.__2to3(access)
-        new_deny = self.__2to3(deny)
-        if new_access & ~old_access or new_deny & ~old_deny:
-            raise NFS3Error(NFS3ERR_INVAL)
-        if access == 0 and deny != 0:
-            raise "Invalid values"
-        # Set new value for id
-        if access == 0 and deny == 0:
-            del self.shares[id]
-        else:
-            self.shares[id] = [new_access, new_deny]
-        # Adjust files overall values
-        new_access = new_deny = 0
-        for i in self.shares:
-            new_access |= self.shares[i][0]
-            new_deny |= self.shares[i][1]
-        self.access = self.__3to2(new_access)
-        self.deny = self.__3to2(new_deny)
-
-    def addshares(self, id, access, deny):
-        """Add given shares, after checking for conflicts."""
-        self.testshares(access, deny)
-        self.access |= access
-        self.deny |= deny
-        if id not in self.shares:
-            self.shares[id] = [0,0]
-        self.shares[id][0] |= self.__2to3(access)
-        self.shares[id][1] |= self.__2to3(deny)
-
-    def testshares(self, access, deny):
-        """Raises NFS3Error if proposed shares conflict with existing"""
-        if access == 0:
-            raise NFS3Error(NFS3ERR_INVAL)
-        if access & self.deny or deny & self.access:
-            raise NFS3Error(NFS3ERR_ACCES)
-
-    def checkaccess(self, id, mode):
-        """Raise erropr if owner id cannot access file with mode"""
-        if id not in [0,1]:
-            try:
-                if self.__3to2(self.shares[id][0]) & mode != mode:
-                    raise NFS3Error(NFS3ERR_ACCES)
-            except KeyError:
-                raise NFS3Error(NFS3ERR_STALE)
-        if mode & self.deny:
-            # Can get here if use reserved stateid
-            raise NFS3Error(NFS3ERR_ACCES)
-
-    def removelocks(self, id):
-        """Remove all locks for given id"""
-        if id in self.locks:
-            del self.locks[id]
-
-    def addlock(self, id, type, start, end):
-        """Add lock, assuming we have already tested for no conflicts"""
-        if id not in self.locks:
-            # Simple case of no previous lock by this owner
-            self.locks[id] = [self.LockInfo(type, start, end)]
-            return
-        if POSIXLOCK:
-            self.addposixlock(self.locks[id], type, start, end)
-            return
-        # Handle nonPOSIX locks
-        for lock in self.locks[id]:
-            if lock.overlaps(start, end):
-                if lock.start==start and lock.end==end:
-                    #Up/downgrade existing lock
-                    lock.type = type
-                    return
-                else:
-                    raise NFS3Error(NFS3ERR_BADTYPE)
-        self.locks[id].append(self.LockInfo(type, start, end))
-
-    def testlock(self, ids, type, start, end):
-        """See if lock conflicts with owners not in 'ids' list
-
-        Returns info on the conflicting lock if found, None otherwise.
-        """
-        for owner in self.locks:
-            if owner in ids: continue
-            for lock in self.locks[owner]:
-                if lock.overlaps(start, end) and (type&1==0 or lock.type&1==0):
-                    return (owner, lock)
-        return None
-
-    def unlock(self, id, type, start, end):
-        """Remove a lock"""
-        if id not in self.locks:
-            return
-        if POSIXLOCK:
-            self.removeposixlock(self.locks[id], type, start, end)
-            return
-        # Handle nonPOSIX locks
-        for i,lock in zip(range(len(self.locks[id])), self.locks[id]):
-            if lock.overlaps(start, end):
-                if lock.start == start and lock.end == end:
-                    del self.locks[id][i]
-                    if len(self.locks[id]) == 0:
-                        del self.locks[id]
-                    return
-                else:
-                    raise NFS3Error(NFS3ERR_BADTYPE)
-        return
-
-    def addposixlock(self, list, type, start, end):
-        """Adds lock to list, splitting/merging existing locks as necessary"""
-        self.__removerange(list, start, end)
-        list.append(self.LockInfo(type, start, end))
-        list.sort()
-        # Merge adjacent locks
-        for i in range(len(list) - 1, 0, -1):
-            if list[i].start == list[i-1].end + 1 and \
-               list[i].type == list[i-1].type:
-                  list[i-1].end = list[i].end
-                  del list[i]
-        logger.info(list)
-
-    def removeposixlock(self, list, type, start, end):
-        """Removes lock from sorted list, splitting existing locks as necessary
-        """
-        self.__removerange(list, start, end)
-        list.sort()
-        logger.info(list)
-
-    def __removerange(self, list, start, end):
-        """Removes locks in given range, shrinking locks that half-overlap"""
-        # If start is inside a lock, we split that lock in two
-        for lock in list:
-            if lock.start < start <= lock.end:
-                list.append(self.LockInfo(lock.type, start, lock.end))
-                lock.end = start - 1
-                break
-        # If end is inside a lock, we split that lock in two
-        for lock in list:
-            if lock.start <= end < lock.end:
-                list.append(self.LockInfo(lock.type, lock.start, end))
-                lock.start = end + 1
-                break
-        # Remove all locks inside given range
-        for lock in list[:]:
-            if lock.overlaps(start, end):
-                list.remove(lock)
-        
-#########################################################################
-
 class NFSFileHandle(object):
     # name = the external NFS3 name
     # file = the real, local file
@@ -318,9 +114,6 @@ class NFSFileHandle(object):
         # search through the filesystem for a filename
         raise "implement find."
 
-    #def __repr__(self):
-    #    return "<NFSFileHandle(%s): %s>" % (self.get_fhclass(), str(self.file))
-    
     def __str__(self):
         return self.name
 
@@ -354,16 +147,16 @@ class NFSFileHandle(object):
     def remove(self, target):
         raise "implement remove"
 
-def handle(*args):
+def handle(*args, **kwargs):
     """
     implements class factory
     """
     if htype == 'HARD_HANDLE':
-        return HardHandle(*args)
+        return HardHandle(*args, **kwargs)
     elif htype == 'NULL_HANDLE':
-        return NULLHandle(*args)
+        return NULLHandle(*args, **kwargs)
     elif htype == 'REPLICA_HANDLE':
-        return ReplicaHandle(*args)
+        return ReplicaHandle(*args, **kwargs)
 
     assert 0, 'unknown htype: %s' % htype
     
@@ -375,9 +168,8 @@ class HardHandle(NFSFileHandle):
         self.file = file
         self.mtime = 0
         self.fh = self
-        self.cookie = 0
-        self.dirent = {}
-
+        self.dirent = DirList()
+        self.cookie = 1
         self.link_filehandle = None
         self._set_default_attrs()
         self.dirent[name] = self.fh
@@ -580,7 +372,7 @@ class HardHandle(NFSFileHandle):
 
     def read(self, offset, count):
         if self.fattr3_type != NF3REG:
-            raise "read called on non file!"
+            raise NFS3Error(NFS3ERR_ISDIR)
         fd = os.open(self.file, os.O_RDONLY)
         data = create_string_buffer(count)
         size = libc.pread(fd, data, count, offset)
@@ -598,29 +390,35 @@ class HardHandle(NFSFileHandle):
                 subfile.destruct()
 
     def remove(self, target):
+        file = self.dirent[target]
         fullfile = os.path.join(self.file, target)
         if not os.path.exists(fullfile):
-            raise "cannot find  file."
+            raise NFS3Error(NFS3ERR_NOENT)
         stat_struct = os.stat(fullfile)
         if S_ISDIR(stat_struct.st_mode):
-            raise "cannot remove directory"
+            raise NFS3Error(NFS3ERR_ISDIR)
         elif S_ISLNK(stat_struct.st_mode):
             os.unlink(fullfile) 
         else:
             os.remove(fullfile)
+        del self.dirent[target]
+        file.destruct()
 
     def rmdir(self, target):
+        file = self.dirent[target]
         fullfile = os.path.join(self.file, target)
         if not os.path.exists(fullfile):
-            raise "cannot find  file."
+            raise NFS3Error(NFS3ERR_NOENT)
         stat_struct = os.stat(fullfile)
         if not S_ISDIR(stat_struct.st_mode):
-            raise "not a directory"
+            raise NFS3Error(NFS3ERR_NOTDIR)
         shutil.rmtree(fullfile)
+        del self.dirent[target]
+        file.destruct()
 
     def __link(self, file, newname):
-        if self.fattr3_type != NF3DIR:
-             raise "__link called on non-directory"
+        if self.fattr3_type == NF3DIR:
+            raise NFS3Error(NFS3ERR_ISDIR)
         return
     
     def rename(self, oldfh, oldname, newname): # self = newfh
@@ -636,9 +434,9 @@ class HardHandle(NFSFileHandle):
     def read_dir(self, cookie = 0):
         stat_struct = os.stat(self.file)
         if not S_ISDIR(stat_struct.st_mode):
-            raise "Not a directory."
+            raise NFS3Error(NFS3ERR_NOTDIR)
         if stat_struct[ST_MTIME] == self.mtime:
-            return self.dirent.values()
+            return [x.fh for x in self.dirent.readdir(cookie)]
         self.oldfiles = self.dirent.keys()
         for i in os.listdir(self.file):
             fullfile = os.path.join(self.file, i)
@@ -648,7 +446,7 @@ class HardHandle(NFSFileHandle):
                 self.oldfiles.remove(i)
         for i in self.oldfiles:
             del self.dirent[i]
-        return self.dirent.values()
+        return [x.fh for x in self.dirent.readdir(cookie)]
         
     def read_link(self):
         return os.readlink(self.file)
@@ -660,8 +458,27 @@ class HardHandle(NFSFileHandle):
         For each bitnum, it will try to call self.set_fattr3_<name> if it
         exists, otherwise it will just set the variable self.fattr3_<name>.
         """
-        #self.set_fattr3_attributes(attrdict)
-        return attrdict
+        if attrdict == {}:
+            return attrdict
+        attrs = {}
+        if attrdict.mode.set_it:
+            attrs['fattr3_mode'] = attrdict.mode.mode
+        if attrdict.gid.set_it:
+            attrs['fattr3_gid'] = attrdict.gid.gid
+        if attrdict.uid.set_it:
+            attrs['fattr3_uid'] = attrdict.uid.uid
+        if attrdict.size.set_it:
+            attrs['fattr3_size'] = attrdict.size.size
+        if attrdict.atime.set_it == SET_TO_SERVER_TIME:
+            attrs['fattr3_atime'] = converttime()
+        if attrdict.mtime.set_it == SET_TO_SERVER_TIME:
+            attrs['fattr3_mtime'] = converttime()
+        if attrdict.atime.set_it == SET_TO_CLIENT_TIME:
+            attrs['fattr3_size'] = attrdict.atime.atime
+        if attrdict.mtime.set_it == SET_TO_CLIENT_TIME:
+            attrs['fattr3_size'] = attrdict.mtime.mtime
+        self.set_fattr3_attributes(attrs)
+        return attrs
 
     def create(self, name, mode=UNCHECKED, attrs={}):
         """ Create a file of given type with given attrs, return attrs set
@@ -670,8 +487,8 @@ class HardHandle(NFSFileHandle):
         """
         # Must make sure that if it fails, nothing is changed
         fullfile = os.path.join(self.file, name)
-        if os.path.exists(fullfile) and mode == GUARDED:
-            raise "attempted to create already existing file."
+        if os.path.exists(fullfile):
+            raise NFS3Error(NFS3ERR_EXIST)
         fd = os.open(fullfile, os.O_CREAT)
         os.close(fd)
         fh = handle(None, name, self, fullfile)
@@ -687,7 +504,7 @@ class HardHandle(NFSFileHandle):
         # Must make sure that if it fails, nothing is changed
         fullfile = os.path.join(self.file, name)
         if os.path.exists(fullfile):
-            raise "attempted to create already existing file."
+            raise NFS3Error(NFS3ERR_EXIST)
         os.mkdir(fullfile)
         fh = handle(None, name, self, fullfile)
         attrset = fh.set_attributes(attrs)
@@ -696,32 +513,25 @@ class HardHandle(NFSFileHandle):
 
     def write(self, offset, data, count=0, stable=UNSTABLE):
         if self.fattr3_type != NF3REG:
-            raise "write called on non file!"
+            raise NFS3Error(NFS3ERR_ISDIR)
         if len(data) == 0: 
             return 0
         self.fattr3_change += 1
-
         if count == 0:
             count = len(data)
         fd = os.open(self.file, os.O_RDWR)
         size = libc.pwrite(fd, data, count, offset)
         os.close(fd)
-        self.fattr3_size += size
-        now = time.time()
-        self.fattr3_atime = converttime(now)
-        self.fattr3_mtime = converttime(now)
-        self.fattr3_ctime = converttime(now)
+        self._set_default_attrs()
         return size
 
     def commit(self, offset, count):
-        if self.fattr4_type != NF4REG:
-            raise "write called on non file!"                              
-        if count == 0:                                                     
+        if count == 0:
             return 0
-        fd = os.open(self.file, os.O_RDWR)                                 
-        os.fsync(fd)                                                       
+        fd = os.open(self.file, os.O_RDWR)
+        os.fsync(fd)
         os.close(fd)
-        self.fattr4_time_metadata = converttime()                          
+        self.fattr4_time_metadata = converttime()
         return count  
 
 class CallBackProxy(object):
@@ -921,7 +731,7 @@ class DirList:
         # Remove if already in list
         for x in self.list:
             if x.name == name:
-                del self.list[x]
+                self.list.remove(x)
         # Append to end of list
         self.list.append(self.DirEnt(name, fh, self.__nextcookie()))
 
@@ -955,7 +765,6 @@ class DirList:
         if i is None:
             return []
         else:
-            logger.info(self.list[i:])
             return self.list[i:]
 
     def has_key(self, name):
