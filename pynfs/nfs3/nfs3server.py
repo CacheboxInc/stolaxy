@@ -122,8 +122,6 @@ class MNT3Server(rpc.RPCServer):
         self.rootfh = rootfh
 
     def mount3proc_null(self, data, cred):
-        logger.info("******** TCP RPC NULL CALL ********")
-        logger.info("  flavor = %i" % cred.flavor)
         if cred.flavor == rpc.RPCSEC_GSS:
             gss = self.security[cred.flavor]
             body = gss.read_cred(cred.body)
@@ -173,8 +171,6 @@ class NFS3Server(rpc.RPCServer):
         self.verfnum = 0
 
     def nfs3proc_null(self, data, cred):
-        logger.info("******** TCP RPC NULL CALL ********")
-        logger.info("  flavor = %i" % cred.flavor)
         if cred.flavor == rpc.RPCSEC_GSS:
             gss = self.security[cred.flavor]
             body = gss.read_cred(cred.body)
@@ -305,7 +301,7 @@ class NFS3Server(rpc.RPCServer):
             if self.curr_fh.get_type() == NF3LNK:
                 raise NFS3Error(NFS3ERR_MLINK)
             if self.curr_fh.get_type() != NF3DIR:
-                return NFS3Error(NFS3ERR_NOTDIR)
+                raise NFS3Error(NFS3ERR_NOTDIR)
             verify_name(args.what.name)
 
             attributes = self._get_fattr3_attributes(self.curr_fh)
@@ -446,11 +442,12 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_CREATE3args()
         try:
             status = NFS3_OK
+            self.curr_fh = self.rootfh.lookup(str(args.where.dir.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             verify_name(args.where.name)
             if not self.curr_fh.get_type() == NF3DIR:
-                return NFS3Error(NFS3ERR_NOTDIR)
+                raise NFS3Error(NFS3ERR_NOTDIR)
             attributes = self._get_fattr3_attributes(self.curr_fh)
             pre_obj_attr = pre_op_attr(attributes_follow=TRUE, attributes=attributes)
             attr = {}
@@ -740,7 +737,7 @@ class NFS3Server(rpc.RPCServer):
                 # Add file to returned entries
                 entries.insert(0, entry)
             if (not entries) and dirlist:
-                return NFS3Error(NF3ERR_TOOSMALL)
+                raise NFS3Error(NF3ERR_TOOSMALL)
             # Encode entries as linked list
             e3 = []
             for entry in entries:
@@ -886,7 +883,7 @@ def mnt3server(rootfh, port=32767, host=''):
     except Exception as e:
         logger.warn("!! unable to register with portmap")
         pass
-    logger.debug("Python NFSv4 Server, (c) CITI, Regents of the University of Michigan")
+    logger.debug("Python NFSv3 Server, (c) CITI, Regents of the University of Michigan")
     logger.debug("Starting Server, root handle: %s" % directory)
 
     server.run()
@@ -896,12 +893,19 @@ def mnt3server(rootfh, port=32767, host=''):
         pass
 
 def startup(host, port, directory, raft = None):
-    rootfh = HardHandle(None, "/", None, directory, int(random.randint(2000, 10000)))
+    if htype == 'HARD_HANDLE':
+        rootfh = HardHandle(None, "/", None, directory, int(random.randint(2000, 10000)))
+    elif htype == 'REPLICA_HANDLE':
+        rootfh = ReplicaHandle(None, "/", None, directory, raft, int(random.randint(2000, 10000)))
+    else:
+        assert 0, "unknown htype"
+
     nfs = threading.Thread(
            target = startnfs3server,
-           kwargs = {'rootfh': rootfh, 
-                     'port': port, 
-                     'host': host, 
+           kwargs = {
+                     'rootfh': rootfh,
+                     'port': port,
+                     'host': host,
                      'raft': raft
                      }
     )
@@ -909,9 +913,11 @@ def startup(host, port, directory, raft = None):
 
     mnt = threading.Thread(
            target = mnt3server,
-           kwargs = {'rootfh': rootfh,
-                     'port': 32767, 
-                     'host': host}
+           kwargs = {
+                     'rootfh': rootfh,
+                     'port': 32767,
+                     'host': host
+                    }
     )
     mnt.start()
 
