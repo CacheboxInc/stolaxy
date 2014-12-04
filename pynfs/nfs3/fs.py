@@ -163,14 +163,14 @@ def handle(*args, **kwargs):
 
 class HardHandle(NFSFileHandle):
 
-    def __init__(self, filesystem, name, parent, file):
+    def __init__(self, filesystem, name, parent, file, fsid):
         NFSFileHandle.__init__(self, name, parent)
         self.file = file
         self.mtime = 0
         self.fh = self
         self.dirent = DirList()
-        self.cookie = 1
         self.link_filehandle = None
+        self.fsid = fsid
         self._set_default_attrs()
         self.dirent[name] = self.fh
 
@@ -208,9 +208,9 @@ class HardHandle(NFSFileHandle):
             self.fattr3_type = NF3LNK
         self.fattr3_size = stat_struct.st_size
         self.fattr3_numlinks = stat_struct.st_nlink
-        self.fattr3_fsid = 0
+        self.fattr3_fsid = self.fsid
         self.fattr3_fileid = stat_struct.st_ino
-        self.fattr3_mode = 644 # Currently no access restrictions enforced
+        self.fattr3_mode = stat_struct.st_mode
         self.fattr3_rdev = specdata3(os.major(self.stat_struct.st_dev), os.minor(self.stat_struct.st_dev))
         self.fattr3_atime = converttime(self.stat_struct.st_atime)
         self.fattr3_mtime = converttime(self.stat_struct.st_mtime)
@@ -296,7 +296,7 @@ class HardHandle(NFSFileHandle):
             fullfile = os.path.join(self.file, name)
             if not os.path.exists(fullfile):
                 return None
-            fh = handle(None, name, self, fullfile)
+            fh = handle(None, name, self, fullfile, self.fsid)
             self.dirent[name] = fh
             return fh
         except KeyError:
@@ -426,7 +426,7 @@ class HardHandle(NFSFileHandle):
         old_filefull = os.path.join(oldfh.file, oldname)
         new_filefull = os.path.join(self.file, newname)
         shutil.move(old_filefull, new_filefull)
-        fh = handle(None, newname, self, new_filefull)
+        fh = handle(None, newname, self, new_filefull, self.fsid)
         self.dirent[newname] = fh
         del self.dirent[oldname]
         file.destruct()
@@ -441,7 +441,7 @@ class HardHandle(NFSFileHandle):
         for i in os.listdir(self.file):
             fullfile = os.path.join(self.file, i)
             if not self.dirent.has_key(i):
-                self.dirent[i] = handle(None, i, self, fullfile)
+                self.dirent[i] = handle(None, i, self, fullfile, self.fsid)
             else:
                 self.oldfiles.remove(i)
         for i in self.oldfiles:
@@ -491,7 +491,7 @@ class HardHandle(NFSFileHandle):
             raise NFS3Error(NFS3ERR_EXIST)
         fd = os.open(fullfile, os.O_CREAT)
         os.close(fd)
-        fh = handle(None, name, self, fullfile)
+        fh = handle(None, name, self, fullfile, self.fsid)
         attrset = fh.set_attributes(attrs)
         self.dirent[name] = fh
         return attrset
@@ -506,7 +506,7 @@ class HardHandle(NFSFileHandle):
         if os.path.exists(fullfile):
             raise NFS3Error(NFS3ERR_EXIST)
         os.mkdir(fullfile)
-        fh = handle(None, name, self, fullfile)
+        fh = handle(None, name, self, fullfile, self.fsid)
         attrset = fh.set_attributes(attrs)
         self.dirent[name] = fh
         return attrset
@@ -571,8 +571,8 @@ class CallBackProxy(object):
         return True
 
 class ReplicaHandle(HardHandle, CallBackProxy):
-    def __init__(self, filesystem, name, parent, file, raft = None):
-        HardHandle.__init__(self, filesystem, name, parent, file)
+    def __init__(self, filesystem, name, parent, file, fsid, raft = None):
+        HardHandle.__init__(self, filesystem, name, parent, file, fsid)
         if parent:
             self.raft = parent.raft
         else:
@@ -642,7 +642,7 @@ class ReplicaHandle(HardHandle, CallBackProxy):
 
             ret = self.raft.replicate(nfsop.SerializeToString())
             
-        fh = handle(None, name, self, fullfile)
+        fh = handle(None, name, self, fullfile, self.fsid)
         attrset = fh.set_attributes(attrs)
         self.dirent[name] = fh
         return attrset
@@ -715,6 +715,7 @@ class DirList:
             self.name = name
             self.fh = fh
             self.cookie = cookie
+            self.fh.cookie = cookie
 
     def __len__(self):
         return len(self.list)
