@@ -2,9 +2,10 @@ import cython
 cimport caio
 
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from cpython.string cimport PyString_FromStringAndSize, PyString_AS_STRING, PyString_InternFromString
+from cpython.string cimport PyString_FromStringAndSize, PyString_AS_STRING, PyString_InternFromString, PyString_FromString
 from cpython.ref cimport PyObject
 from libc.stdio cimport printf
+from libc.stdlib cimport malloc, free
 
 cdef class AIO:
     cdef caio.io_context_t ctx
@@ -49,20 +50,30 @@ cdef class AIO:
         self.iocbs[self.curiocb] = iocb
         self.curiocb += 1
 
-    def io_read(self, int fd, size_t count, long long offset, long long cookie = 0):
+    def io_read(self, int fd, size_t count, long long offset, long long xid):
         cdef caio.iocb *iocb = <caio.iocb *> &self.iocba[self.curiocb]
-        buf = PyString_FromStringAndSize(NULL, count)
-        if not buf:
+        cdef char *buf = <char *> PyMem_Malloc(count)
+        if buf == NULL:
             raise MemoryError()
-        self.io_prep_pread(iocb, fd, PyString_AS_STRING(buf), count, offset)
-        iocb.data = <void *>cookie
+        if (count % 512) == 0 and (offset % 512) == 0:
+            r = posix_memalign(<void **>&buf, 512, count)
+            if r != 0:
+                raise MemoryError()
+        self.io_prep_pread(iocb, fd, buf, count, offset)
+        iocb.data = <void *> xid
         self.io_addiocb(iocb)
         return buf
 
-    def io_write(self, int fd, char *buf, size_t count, long long offset, long long cookie = 0):
+    def io_write(self, int fd, char *buf, size_t count, long long offset, long long xid):
         cdef caio.iocb *iocb = <caio.iocb *> &self.iocba[self.curiocb]
-        self.io_prep_pwrite(iocb, fd, buf, count, offset)
-        iocb.data = <void *>cookie
+        cdef char *c_buf = <char *> PyMem_Malloc(count)
+        if (count % 512) == 0 and (offset % 512) == 0:
+            r = posix_memalign(<void **>&c_buf, 512, count)
+            if r != 0:
+                raise MemoryError()
+        c_buf = <char *>memcpy(<void *>c_buf, <void *>buf, count)
+        self.io_prep_pwrite(iocb, fd, c_buf, count, offset)
+        iocb.data = <void *> xid
         return self.io_addiocb(iocb)
 
     def io_submit(self):
@@ -82,10 +93,13 @@ cdef class AIO:
         while i < ret:
             iocb = <caio.iocb *>(self.events[i].obj)
             event = <caio.io_event *>(&self.events[i])
+            xid = <unsigned long long> iocb.data
             if iocb.aio_lio_opcode == IO_CMD_PREAD:
-                complete['reads'].append((<unsigned long long>iocb.data, event.res, PyString_InternFromString(<char *>iocb.u.c.buf)))
+                complete['reads'].append((xid, event.res, PyString_FromString(<char *>iocb.u.c.buf)))
+                PyMem_Free(iocb.u.c.buf)
             elif iocb.aio_lio_opcode == IO_CMD_PWRITE:
-                complete['writes'].append((<unsigned long long>iocb.data, event.res))
+                complete['writes'].append((xid, event.res))
+                PyMem_Free(iocb.u.c.buf)
             i += 1
 
         complete['total'] = ret
