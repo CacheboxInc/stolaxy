@@ -43,6 +43,7 @@ from rpc.rpc import supported
 from rpc.rpc_const import *
 import signal
 from fs import *
+import random
 from xdrlib import Error as XDRError
 
 from args import args, parser
@@ -309,11 +310,11 @@ class NFS3Server(rpc.RPCServer):
 
             attributes = self._get_fattr3_attributes(self.curr_fh)
             post_dir_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
-            self.curr_fh = self.curr_fh.lookup(str(args.what.name))
-            if self.curr_fh:
-                attributes = self._get_fattr3_attributes(self.curr_fh)
+            file_obj = self.curr_fh.lookup(str(args.what.name))
+            if file_obj:
+                attributes = self._get_fattr3_attributes(file_obj)
                 post_obj_file_attr = pre_op_attr(attributes_follow=TRUE, attributes=attributes)
-                resok = LOOKUP3resok(object=nfs_fh3(data=self.curr_fh.file), \
+                resok = LOOKUP3resok(object=nfs_fh3(data=file_obj.file), \
                                  obj_attributes=post_obj_file_attr, dir_attributes=post_dir_obj_attr)
             else:
                 raise NFS3Error(NFS3ERR_NOENT)
@@ -334,7 +335,6 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_ACCESS3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.object.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             attributes = self._get_fattr3_attributes(self.curr_fh)
@@ -356,13 +356,34 @@ class NFS3Server(rpc.RPCServer):
         return result
 
     def nfs3proc_readlink(self, data, cred):
-        return None # NFS3Error(NFS3ERR_NOTSUPP)
+        args = self.nfs3unpacker.unpack_READLINK3args()
+        try:
+            status = NFS3_OK
+            if not self.curr_fh:
+                raise NFS3Error(NFS3ERR_NOENT)
+            if self.curr_fh.get_type() != NF3LNK:
+                raise NFS3Error(NFS3ERR_INVAL)
+            link = self.curr_fh.read_link()
+            attributes = self._get_fattr3_attributes(self.curr_fh)
+            post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+            resok = READLINK3resok(symlink_attributes=post_obj_attr, data=link)
+        except NFS3Error as e:
+            logger.error("nfs3proc_readlink : %s" % e)
+            status = e.code
+            attributes = {}
+            try:
+                post_obj_attr
+            except:
+                post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            resok = None
+        resfail = READLINK3resfail(symlink_attributes=post_obj_attr)
+        result = READLINK3res(status=status, resok=resok, resfail=resfail)
+        return result
 
     def nfs3proc_read(self, data, cred):
         args = self.nfs3unpacker.unpack_READ3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.file.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             if self.curr_fh.get_type() == NF3DIR:
@@ -386,7 +407,7 @@ class NFS3Server(rpc.RPCServer):
                 post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
             resok = None
         resfail = READ3resfail(file_attributes=post_obj_attr)
-        result = READ3res(status=NFS3_OK, resok=resok, resfail=resfail)
+        result = READ3res(status=status, resok=resok, resfail=resfail)
         return result
  
     def nfs3proc_write(self, data, cred):
@@ -425,7 +446,6 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_CREATE3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.where.dir.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             verify_name(args.where.name)
@@ -468,7 +488,6 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_MKDIR3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.where.dir.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             verify_name(args.where.name)
@@ -514,7 +533,7 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_REMOVE3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.dir.data))
+            self.curr_fh = self.rootfh.lookup(str(args.object.data))
             if self.curr_fh is None:
                 raise NFS3Error(NFS3ERR_NOENT)
             if self.curr_fh.get_type() != NF3DIR:
@@ -631,7 +650,6 @@ class NFS3Server(rpc.RPCServer):
         count = args.count
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.dir.data))
             if self.curr_fh is None:
                 raise NFS3Error(NFS3ERR_NOENT)
             verifier = self.curr_fh.getdirverf()
@@ -668,7 +686,6 @@ class NFS3Server(rpc.RPCServer):
                 e3 = [entry3(fileid=entry.fattr3_fileid, name=entry.name, cookie=entry.cookie, nextentry=e3)]
             if len(entries) < len(dirlist):
                 d3 = dirlist3(entries=e3, eof=0)
-                del self.curr_fh.cookies[cookie]
             else:
                 d3 = dirlist3(entries=e3, eof=1)
             attributes = self._get_fattr3_attributes(self.curr_fh)
@@ -692,7 +709,6 @@ class NFS3Server(rpc.RPCServer):
         maxcount = args.maxcount
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.dir.data))
             if self.curr_fh is None:
                 raise NFS3Error(NFS3ERR_NOENT)
             verifier = self.curr_fh.getdirverf()
@@ -710,7 +726,7 @@ class NFS3Server(rpc.RPCServer):
                 # Compute size of XDR encoding
                 attributes = self._get_fattr3_attributes(entry)
                 name_attributes = post_op_attr(attributes_follow=TRUE, attributes=attributes)
-                name_handle = post_op_fh3(handle_follows=TRUE, handle=nfs_fh3(data=self.curr_fh.file))
+                name_handle = post_op_fh3(handle_follows=TRUE, handle=nfs_fh3(data=entry.file))
                 entry.attr = name_attributes
                 entry.name_handle = name_handle
                 e3 = entryplus3(fileid=entry.fattr3_fileid, name=entry.name, cookie=entry.cookie, 
@@ -788,7 +804,6 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_PATHCONF3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.object.data))
             if self.curr_fh is None:
                 raise NFS3Error(NFS3ERR_NOENT)
             attributes = self._get_fattr3_attributes(self.curr_fh)
@@ -818,7 +833,6 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_COMMIT3args()
         try:
             status = NFS3_OK
-            self.curr_fh = self.rootfh.lookup(str(args.file.data))
             if self.curr_fh is None:
                 raise NFS3Error(NFS3ERR_NOENT)
             attributes = self._get_fattr3_attributes(self.curr_fh)
@@ -882,7 +896,7 @@ def mnt3server(rootfh, port=32767, host=''):
         pass
 
 def startup(host, port, directory, raft = None):
-    rootfh = HardHandle(None, "/", None, directory)
+    rootfh = HardHandle(None, "/", None, directory, int(random.randint(2000, 10000)))
     nfs = threading.Thread(
            target = startnfs3server,
            kwargs = {'rootfh': rootfh, 
