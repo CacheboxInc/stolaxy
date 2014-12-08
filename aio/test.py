@@ -3,38 +3,119 @@ import os
 import sys
 import time
 import random
-import zmq
+import chardet
+import mmap
+from concurrent.futures import ProcessPoolExecutor as Pool
 
-QUEUE_DEPTH = 1024
+QUEUE_DEPTH = 128
+NR_THREADS = 1
 
-fd = os.open("/etc/passwd", os.O_RDONLY)
+def thr_func(i):
+    print "starting thread %s" % i
+    fd = os.open("/dev/sde", os.O_RDONLY)
+    aio = caio.AIO()
+    aio.io_setup(QUEUE_DEPTH)
+    ios = []
+    while True:
+        if len(ios) < QUEUE_DEPTH:
+            xid = random.randint(0, 100000000)
+            offset = random.randint(0, 10 << 30) & ~(4095)
+            buf = aio.io_read(fd, 4096, offset, xid)
+            ios.append(buf)
+        else:
+            r = 0
+            aio.io_submit()
+            while True:
+                r = aio.io_getevents()
+                for xid, res, buf in r['reads']:
+                    print "completed: xid:%s, bytes read %d %s " % (xid, res, buf)
+                if r['total'] == len(ios):
+                    break
 
-aio = caio.AIO()
-aio.io_setup(QUEUE_DEPTH)
+            ios = []
+            aio.io_reset()
 
-ios = []
+    os.close(fd)
 
-j = 0
+def test1() :
+    readers = []
 
-while True:
-    cookie = random.randint(0, 100000)
-    offset = 0
-    if len(ios) < QUEUE_DEPTH:
-        buf = aio.io_read(fd, 4096, offset, cookie)
-        ios.append(buf)
-        print 'submitted: cookie:%s' % (cookie)
-        j += 1
-    else:
-        r = 0
-        aio.io_submit()
-        while True:
-            r = aio.io_getevents()
-            for cookie, res, buf in r['reads']:
-                print "completed: cookie:%s, bytes read %d" % (cookie, res)
-            if r['total'] == len(ios):
-                break
+    pool = Pool(max_workers = NR_THREADS)
 
-        ios = []
-        aio.io_reset()
-        print 'reaped %d ios. sleeping for %s seconds' % (r['total'], 1)
-        time.sleep(1)
+    for t in xrange(0, NR_THREADS):
+        reader = pool.submit(thr_func, (t,))
+        readers.append(reader)
+
+def test2():
+    fd = os.open("/mnt/xfs/test_file", os.O_RDONLY|os.O_DIRECT)
+    aio = caio.AIO()
+    aio.io_setup(QUEUE_DEPTH)
+    xid = random.randint(0, 100000000)
+    offset = 4096
+    buf = aio.io_read(fd, 4096, offset, xid)
+    aio.io_submit()
+    while True:
+        print "test 1"
+        r = aio.io_getevents()
+        for xid, res, buf in r['reads']:
+            print "completed: xid:%s, bytes read %d" % (xid, res)
+            print buf
+            print len(buf)
+        if r['total'] == 1:
+            break
+
+    os.close(fd)
+
+    fd = os.open("/mnt/xfs/test_file", os.O_RDONLY)
+    aio = caio.AIO()
+    aio.io_setup(QUEUE_DEPTH)
+    xid = random.randint(0, 100000000)
+    offset = 4091
+    buf = aio.io_read(fd, 4091, offset, xid)
+    aio.io_submit()
+    while True:
+        print "test 2"
+        r = aio.io_getevents()
+        for xid, res, buf in r['reads']:
+            print "completed: xid:%s, bytes read %d" % (xid, res)
+            print buf
+            print len(buf)
+        break
+
+    os.close(fd)
+
+
+    aio = caio.AIO()
+    aio.io_setup(QUEUE_DEPTH)
+    fd = os.open("/etc/passwd", os.O_RDWR)
+    data = os.read(fd, 1192)
+    os.close(fd)
+    fd2 = os.open("/mnt/xfs/t1", os.O_RDWR)
+    xid = random.randint(0, 100000000)
+    buf = aio.io_write(fd2, data, len(data), offset, xid)
+    fd = os.open("/mnt/xfs/t2", os.O_RDWR|os.O_DIRECT)
+    xid = random.randint(0, 100000000)
+    data = 'b' * 4096
+    buf = aio.io_write(fd, data, len(data), 0, xid)
+    data = "asas2132134d\n"
+    fd1 = os.open("/mnt/xfs/t3", os.O_RDWR)
+    xid = random.randint(0, 100000000)
+    buf = aio.io_write(fd1, data, len(data), offset, xid)
+    aio.io_submit()
+    ret = 0
+    print "test 3"
+    while True:
+        r = aio.io_getevents()
+        ret += r['total']
+        for xid, res in r['writes']:
+            print "completed: xid:%s, bytes written %d" % (xid, res)
+        if ret == 2:
+            break
+
+    aio.io_reset()
+    os.close(fd)
+    os.close(fd1)
+    os.close(fd2)
+
+if __name__ == "__main__":
+    test1()

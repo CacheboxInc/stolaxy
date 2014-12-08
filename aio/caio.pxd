@@ -1,3 +1,9 @@
+cdef extern from "stdlib.h":
+    int posix_memalign(void **memptr, size_t alignment, size_t size)
+
+cdef extern from "string.h":
+    void *memcpy(void *dest, void *src, size_t n)
+
 cdef extern from "libaio.h":
     cdef struct io_context:
         pass
