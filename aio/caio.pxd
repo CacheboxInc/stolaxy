@@ -58,3 +58,10 @@ cdef extern from "libaio.h":
     void io_prep_pwrite(iocb *iocb, int fd, char *buf, size_t count, long long offset)
     int io_destroy(io_context_t ctx)
     void io_set_eventfd(iocb *iocb, int eventfd)
+
+cdef struct aio_cookie:
+    long long xid
+    size_t addr
+
+ctypedef aio_cookie *aio_cookie_t
+cdef size_t aio_cookie_size = sizeof(aio_cookie)

@@ -5,18 +5,20 @@ import time
 import random
 import chardet
 import mmap
+import gc
 from concurrent.futures import ProcessPoolExecutor as Pool
 
 QUEUE_DEPTH = 128
-NR_THREADS = 1
+NR_THREADS = 32
 
 def thr_func(i):
     print "starting thread %s" % i
-    fd = os.open("/dev/sde", os.O_RDONLY)
+    fd = os.open("/mnt/xfs/test_file", os.O_RDONLY)
     aio = caio.AIO()
     aio.io_setup(QUEUE_DEPTH)
     ios = []
     while True:
+        gc.collect()
         if len(ios) < QUEUE_DEPTH:
             xid = random.randint(0, 100000000)
             offset = random.randint(0, 10 << 30) & ~(4095)
@@ -28,7 +30,8 @@ def thr_func(i):
             while True:
                 r = aio.io_getevents()
                 for xid, res, buf in r['reads']:
-                    print "completed: xid:%s, bytes read %d %s " % (xid, res, buf)
+                    pass
+                    #print "completed: xid:%s, bytes read %d %s " % (xid, res, buf)
                 if r['total'] == len(ios):
                     break
 
