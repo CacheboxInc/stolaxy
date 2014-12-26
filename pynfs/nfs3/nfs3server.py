@@ -878,6 +878,7 @@ class NFS3AIOServer(NFS3Server):
         self.now = datetime.datetime.now()
         self.xid_res = {}
         self.fds = {'DIRECT': {}, 'INDIRECT': {}}
+        self.close_fds = []
 
     def package_response(self, xid, cred, result):
         flavor = cred.flavor
@@ -918,41 +919,52 @@ class NFS3AIOServer(NFS3Server):
         result = WRITE3res(status=NFS3_OK, resok=resok, resfail=resfail)
         return result
 
+    def process_aio_thread(self, data = None):
+        if data is None:
+           return
+        fd = data['fd']
+        for xid, res, buf in data['reads']:
+            #print "*** READS done %s ***" % (xid)
+            cred = self.xid_res[xid]['cred']
+            fh = self.xid_res[xid]['fh']
+            count = self.xid_res[xid]['count']
+            self.xid_res[xid]['ref'] -= 1
+            if self.xid_res[xid]['ref'] == 0:
+                del self.xid_res[xid]
+            result = self.process_reads(fh, buf, count)
+            reply = self.package_response(xid, cred, result)
+            self.recordbufs[fd].append(reply)
+            self.p.register(fd, _bothmask)
+        for xid, res in data['writes']:
+            #print "*** WRITES done %s %s ***" % (xid, res)
+            cred = self.xid_res[xid]['cred']
+            fh = self.xid_res[xid]['fh']
+            pre_obj_attr = self.xid_res[xid]['pre_obj_attr']
+            stable = self.xid_res[xid]['stable']
+            self.xid_res[xid]['ref'] -= 1
+            if self.xid_res[xid]['ref'] == 0:
+                del self.xid_res[xid]
+            result = self.process_writes(fh, pre_obj_attr, res, stable)
+            reply = self.package_response(xid, cred, result)
+            self.recordbufs[fd].append(reply)
+            self.p.register(fd, _bothmask)
+        self.event_write(fd)
+
     def process_aios(self):
+        #print "calling process ios for %s\n" % self.fd
         self.aio.io_submit()
         ret = 0
         if not self.recordbufs.has_key(self.fd):
             return
+        data = {'reads': [], 'writes': [], 'fd': self.fd}
         while True:
             r = self.aio.io_getevents()
             ret += r['total']
-            for xid, res, buf in r['reads']:
-                #print "*** READS done %s ***" % (xid)
-                cred = self.xid_res[xid]['cred']
-                fh = self.xid_res[xid]['fh']
-                count = self.xid_res[xid]['count']
-                self.xid_res[xid]['ref'] -= 1
-                if self.xid_res[xid]['ref'] == 0:
-                    del self.xid_res[xid]
-                result = self.process_reads(fh, buf, count)
-                reply = self.package_response(xid, cred, result)
-                self.recordbufs[self.fd].append(reply)
-                self.p.register(self.fd, _bothmask)
-            for xid, res in r['writes']:
-                #print "*** WRITES done %s %s ***" % (xid, res)
-                cred = self.xid_res[xid]['cred']
-                fh = self.xid_res[xid]['fh']
-                pre_obj_attr = self.xid_res[xid]['pre_obj_attr']
-                stable = self.xid_res[xid]['stable']
-                self.xid_res[xid]['ref'] -= 1
-                if self.xid_res[xid]['ref'] == 0:
-                    del self.xid_res[xid]
-                result = self.process_writes(fh, pre_obj_attr, res, stable)
-                reply = self.package_response(xid, cred, result)
-                self.recordbufs[self.fd].append(reply)
-                self.p.register(self.fd, _bothmask)
+            data['reads'].extend(r['reads'])
+            data['writes'].extend(r['writes'])
             if ret == self.ios:
                 break
+
         for fd in self.fds['DIRECT'].values():
             os.close(fd)
         for fd in self.fds['INDIRECT'].values():
@@ -961,41 +973,50 @@ class NFS3AIOServer(NFS3Server):
         self.ios = 0
         self.aio.io_reset()
         self.now = datetime.datetime.now()
-        self.event_write(self.fd)
+
+        thr = threading.Thread(
+               target = self.process_aio_thread,
+               kwargs = {
+                         'data': data
+                        }
+              )
+        thr.start()
+        thr.join()
 
     def run(self, debug=0):
         while 1:
-            logger.info("%s: Calling poll %s" % (self.name, self.recv_size))
             res = self.p.poll(100)
-            logger.info("%s: %s" % (self.name, res))
             if self.ios == self.QUEUE_DEPTH or \
                 ((datetime.datetime.now() - self.now).microseconds > 10000 and self.ios > 0):
                 self.process_aios()
             for fd, event in res:
                 self.fd = fd
-                logger.info( "%s: Handling fd=%i, event=%x" % \
-                          (self.name, fd, event))
+                #print "%s: Handling fd=%i, event=%x" % (self.name, fd, event)
                 if event & select.POLLHUP:
+                    #print "self.event_hup fd=%i" % fd
                     self.event_hup(fd)
                 elif event & select.POLLNVAL:
-                    if debug: logger.info("%s: POLLNVAL for fd=%i" % (self.name, fd))
+                    #print "%s: POLLNVAL for fd=%i" % (self.name, fd)
                     self.p.unregister(fd)
                 elif event & ~(select.POLLIN | select.POLLOUT):
-                    logger.info("%s: ERROR: event %i for fd %i" % \
-                          (self.name, event, fd))
+                    #print "%s: ERROR: event %i for fd %i" % (self.name, event, fd)
                     self.event_error(fd)
                 else:
                     if event & select.POLLOUT:
+                        #print "self.event_write fd=%i" % fd
                         self.event_write(fd)
                     # This must be last since may call close
                     if event & select.POLLIN:
                         if fd == self.s.fileno():
+                            #print "self.event_connect fd=%i" % fd
                             self.event_connect(fd)
                         else:
                             data = self.sockets[fd].recv(self.recv_size)
                             if data:
+                                #print "calling event_read %s\n" % fd
                                 self.event_read(fd, data)
                             else:
+                                #print "closing %s" % fd
                                 self.event_close(fd)
 
     def event_read(self, fd, data, debug=0):
@@ -1198,8 +1219,10 @@ class NFS3AIOServer(NFS3Server):
         return result
 
 def startnfs3server(rootfh, port=2049, host='', pubfh=None, raft = None):
-    server = NFS3Server(rootfh, port=port, host=host, pubfh=directory)
-    #server = NFS3AIOServer(rootfh, port=port, host=host, pubfh=directory)
+    if htype == 'AIO_HANDLE':
+        server = NFS3AIOServer(rootfh, port=port, host=host, pubfh=directory)
+    else:
+        server = NFS3Server(rootfh, port=port, host=host, pubfh=directory)
     try:
         import portmap as portmap
         if not portmap.set(NFS_PROGRAM, NFS_V3, 6, port):

@@ -106,6 +106,7 @@ cdef class AIO:
         cdef caio.io_event *event
         cdef long long xid
         cdef size_t addr
+        cdef size_t io_addr
         cdef size_t count
         cdef caio.aio_cookie_t cookie
 
@@ -119,12 +120,15 @@ cdef class AIO:
             addr = cookie.addr
             if iocb.aio_lio_opcode == IO_CMD_PREAD:
                 complete['reads'].append((xid, event.res, PyString_FromStringAndSize(<char *>iocb.u.c.buf, event.res)))
-                PyMem_Free(iocb.u.c.buf)
+                io_addr = <size_t> iocb.u.c.buf
+                PyMem_Free(<void *>io_addr)
             elif iocb.aio_lio_opcode == IO_CMD_PWRITE:
                 complete['writes'].append((xid, event.res))
-                PyMem_Free(iocb.u.c.buf)
+                io_addr = <size_t> iocb.u.c.buf
+                PyMem_Free(<void *>io_addr)
             count = self.addresses.pop(addr)
-            PyMem_Free(<void *> addr)
+            if io_addr != addr:
+                PyMem_Free(<void *> addr)
             PyMem_Free(<void *> cookie)
             self.size -= count
             i += 1

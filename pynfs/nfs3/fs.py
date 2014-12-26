@@ -595,7 +595,7 @@ class NullHandle(HardHandle):
             raise "read called on non file!"
 
         self.fattr3_time_access = converttime()
-        return chr(0) * count
+        return str('a' * count)
 
     def write(self, offset, data, count=0, stable=UNSTABLE):
         if self.fattr3_type != NF3REG:
