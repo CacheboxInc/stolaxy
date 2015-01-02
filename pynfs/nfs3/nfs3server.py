@@ -43,6 +43,7 @@ from rpc.rpc import supported
 from rpc.rpc import RPCVERSION, _readmask, _writemask, _bothmask, select 
 from rpc.rpc_const import *
 from rpc.rpc_type import *
+from rpc import rpc_pack
 import signal
 from fs import *
 from xdrlib import Error as XDRError
@@ -878,24 +879,24 @@ class NFS3AIOServer(NFS3Server):
         self.now = datetime.datetime.now()
         self.xid_res = {}
         self.fds = {'DIRECT': {}, 'INDIRECT': {}}
-        self.close_fds = []
+        self.lock = threading.Lock()
 
-    def package_response(self, xid, cred, result):
+    def package_response(self, xid, cred, result, nfs3packer, rpcpacker):
         flavor = cred.flavor
         rreply = None
         reply_stat = MSG_ACCEPTED
-        self.nfs3packer.reset()
+        nfs3packer.reset()
         ret = str(result).split("(")[0]
-        getattr(self.nfs3packer, "pack_%s" % ret)(result)
-        a_stat, proc_response = rpc.SUCCESS, self.nfs3packer.get_buffer()
+        getattr(nfs3packer, "pack_%s" % ret)(result)
+        a_stat, proc_response = rpc.SUCCESS, nfs3packer.get_buffer()
         proc_response = self.security[flavor].secure_data(proc_response, cred)
         verf = self.security[flavor].make_reply_verf(cred, a_stat)
         areply = accepted_reply(verf, rpc_reply_data(a_stat, ''))
         body = reply_body(reply_stat, areply, rreply)
         msg = rpc_msg(xid, rpc_msg_body(REPLY, rbody=body))
-        self.rpcpacker.reset()
-        self.rpcpacker.pack_rpc_msg(msg)
-        return self.rpcpacker.get_buffer() + proc_response
+        rpcpacker.reset()
+        rpcpacker.pack_rpc_msg(msg)
+        return rpcpacker.get_buffer() + proc_response
 
     def process_reads(self, fh, buf, count):
         attributes = self._get_fattr3_attributes(fh)
@@ -919,39 +920,90 @@ class NFS3AIOServer(NFS3Server):
         result = WRITE3res(status=NFS3_OK, resok=resok, resfail=resfail)
         return result
 
+    def event_write_thread(self, th_name, fd, chunksize=1<<20, debug=0):
+        i = 0
+        conn = self.sockets[fd]
+        flag = 0
+        while 1:
+            i += 1
+            if self.writebufs[th_name]:
+                count = conn.send(self.writebufs[th_name])
+                self.writebufs[th_name] = self.writebufs[th_name][count:]
+                if last == 0x80000000L and not self.writebufs[th_name] and flag == 1:
+                    self.lock.release()
+                    flag = 0
+            elif self.recordbufs[th_name]:
+                data = self.recordbufs[th_name][0]
+                chunk = data[:chunksize]
+                if len(data) > chunksize:
+                    last = 0
+                    self.recordbufs[th_name][0] = data[chunksize:]
+                    if flag == 0:
+                        self.lock.acquire()
+                        flag = 1 
+                else:
+                    last = 0x80000000L
+                    del self.recordbufs[th_name][0]
+                mark = struct.pack('>L', last | len(chunk))
+                self.writebufs[th_name] = (mark + chunk)
+                # Duplicated code
+                count = conn.send(self.writebufs[th_name])
+                self.writebufs[th_name] = self.writebufs[th_name][count:]
+                if last == 0x80000000L and not self.writebufs[th_name] and flag == 1:
+                    self.lock.release()
+                    flag = 0
+            else:
+                self.p.register(fd, _readmask)
+                break
+
+    def process_aio_thread_read(self, xid, res, buf):
+        cred = self.xid_res[xid]['cred']
+        fh = self.xid_res[xid]['fh']
+        count = self.xid_res[xid]['count']
+        self.xid_res[xid]['ref'] -= 1
+        if self.xid_res[xid]['ref'] == 0:
+            del self.xid_res[xid]
+        result = self.process_reads(fh, buf, count)
+        return result
+
+    def process_aio_thread_write(self, xid, res):
+        cred = self.xid_res[xid]['cred']
+        fh = self.xid_res[xid]['fh']
+        pre_obj_attr = self.xid_res[xid]['pre_obj_attr']
+        stable = self.xid_res[xid]['stable']
+        self.xid_res[xid]['ref'] -= 1
+        if self.xid_res[xid]['ref'] == 0:
+            del self.xid_res[xid]
+        result = self.process_writes(fh, pre_obj_attr, res, stable)
+        return result
+
     def process_aio_thread(self, data = None):
         if data is None:
            return
         fd = data['fd']
+        th = threading.current_thread()
+        th_name = th.name
+        self.recordbufs[th_name] = []
+        self.writebufs[th_name] = []
+        nfs3packer = NFS3Packer()
+        rpcpacker =  rpc_pack.RPCPacker()
         for xid, res, buf in data['reads']:
-            #print "*** READS done %s ***" % (xid)
             cred = self.xid_res[xid]['cred']
-            fh = self.xid_res[xid]['fh']
-            count = self.xid_res[xid]['count']
-            self.xid_res[xid]['ref'] -= 1
-            if self.xid_res[xid]['ref'] == 0:
-                del self.xid_res[xid]
-            result = self.process_reads(fh, buf, count)
-            reply = self.package_response(xid, cred, result)
-            self.recordbufs[fd].append(reply)
+            result = self.process_aio_thread_read(xid, res, buf)
+            reply = self.package_response(xid, cred, result, nfs3packer, rpcpacker)
+            self.recordbufs[th_name].append(reply)
             self.p.register(fd, _bothmask)
         for xid, res in data['writes']:
-            #print "*** WRITES done %s %s ***" % (xid, res)
             cred = self.xid_res[xid]['cred']
-            fh = self.xid_res[xid]['fh']
-            pre_obj_attr = self.xid_res[xid]['pre_obj_attr']
-            stable = self.xid_res[xid]['stable']
-            self.xid_res[xid]['ref'] -= 1
-            if self.xid_res[xid]['ref'] == 0:
-                del self.xid_res[xid]
-            result = self.process_writes(fh, pre_obj_attr, res, stable)
-            reply = self.package_response(xid, cred, result)
-            self.recordbufs[fd].append(reply)
+            result = self.process_aio_thread_write(xid, res)
+            reply = self.package_response(xid, cred, result, nfs3packer, rpcpacker)
+            self.recordbufs[th_name].append(reply)
             self.p.register(fd, _bothmask)
-        self.event_write(fd)
+        self.event_write_thread(th_name, fd)
+        del self.recordbufs[th_name]
+        del self.writebufs[th_name]
 
     def process_aios(self):
-        #print "calling process ios for %s\n" % self.fd
         self.aio.io_submit()
         ret = 0
         if not self.recordbufs.has_key(self.fd):
@@ -965,6 +1017,15 @@ class NFS3AIOServer(NFS3Server):
             if ret == self.ios:
                 break
 
+        thr = threading.Thread(
+               target = self.process_aio_thread,
+               kwargs = {
+                         'data': data
+                        }
+              )
+        thr.setDaemon(True)
+        thr.start()
+
         for fd in self.fds['DIRECT'].values():
             os.close(fd)
         for fd in self.fds['INDIRECT'].values():
@@ -974,15 +1035,6 @@ class NFS3AIOServer(NFS3Server):
         self.aio.io_reset()
         self.now = datetime.datetime.now()
 
-        thr = threading.Thread(
-               target = self.process_aio_thread,
-               kwargs = {
-                         'data': data
-                        }
-              )
-        thr.start()
-        thr.join()
-
     def run(self, debug=0):
         while 1:
             res = self.p.poll(100)
@@ -991,32 +1043,24 @@ class NFS3AIOServer(NFS3Server):
                 self.process_aios()
             for fd, event in res:
                 self.fd = fd
-                #print "%s: Handling fd=%i, event=%x" % (self.name, fd, event)
                 if event & select.POLLHUP:
-                    #print "self.event_hup fd=%i" % fd
                     self.event_hup(fd)
                 elif event & select.POLLNVAL:
-                    #print "%s: POLLNVAL for fd=%i" % (self.name, fd)
                     self.p.unregister(fd)
                 elif event & ~(select.POLLIN | select.POLLOUT):
-                    #print "%s: ERROR: event %i for fd %i" % (self.name, event, fd)
                     self.event_error(fd)
                 else:
                     if event & select.POLLOUT:
-                        #print "self.event_write fd=%i" % fd
                         self.event_write(fd)
                     # This must be last since may call close
                     if event & select.POLLIN:
                         if fd == self.s.fileno():
-                            #print "self.event_connect fd=%i" % fd
                             self.event_connect(fd)
                         else:
                             data = self.sockets[fd].recv(self.recv_size)
                             if data:
-                                #print "calling event_read %s\n" % fd
                                 self.event_read(fd, data)
                             else:
-                                #print "closing %s" % fd
                                 self.event_close(fd)
 
     def event_read(self, fd, data, debug=0):
