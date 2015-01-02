@@ -14,12 +14,17 @@ cdef class AIO:
     cdef caio.io_event *events
     cdef int curiocb
     cdef int maxiocbs
+    cdef size_t size
+    cdef dict addresses
 
     def __cinit__(self):
         self.ctx = <io_context_t> 0
 
     cpdef int io_setup(self, unsigned nr_events=4096) except -1:
         cdef caio.iocb *_dummy = <iocb *> 0
+
+        self.size = 0
+        self.addresses = {}
 
         if caio.io_setup(nr_events, &self.ctx) != 0:
             raise MemoryError()
@@ -53,6 +58,9 @@ cdef class AIO:
     def io_read(self, int fd, size_t count, long long offset, long long xid):
         cdef caio.iocb *iocb = <caio.iocb *> &self.iocba[self.curiocb]
         cdef char *buf = <char *> PyMem_Malloc(count)
+        cdef size_t addr = <size_t> buf
+        cdef caio.aio_cookie_t cookie = <caio.aio_cookie_t>PyMem_Malloc(caio.aio_cookie_size)
+        self.addresses[addr] = count
         if buf == NULL:
             raise MemoryError()
         if (count % 512) == 0 and (offset % 512) == 0:
@@ -60,20 +68,29 @@ cdef class AIO:
             if r != 0:
                 raise MemoryError()
         self.io_prep_pread(iocb, fd, buf, count, offset)
-        iocb.data = <void *> xid
+        cookie.xid = xid
+        cookie.addr = addr
+        iocb.data = <void *> cookie
+        self.size += count
         self.io_addiocb(iocb)
         return buf
 
     def io_write(self, int fd, char *buf, size_t count, long long offset, long long xid):
         cdef caio.iocb *iocb = <caio.iocb *> &self.iocba[self.curiocb]
         cdef char *c_buf = <char *> PyMem_Malloc(count)
+        cdef size_t addr = <size_t> c_buf
+        cdef caio.aio_cookie_t cookie = <caio.aio_cookie_t>PyMem_Malloc(caio.aio_cookie_size)
+        self.addresses[addr] = count
         if (count % 512) == 0 and (offset % 512) == 0:
             r = posix_memalign(<void **>&c_buf, 512, count)
             if r != 0:
                 raise MemoryError()
         c_buf = <char *>memcpy(<void *>c_buf, <void *>buf, count)
         self.io_prep_pwrite(iocb, fd, c_buf, count, offset)
-        iocb.data = <void *> xid
+        cookie.xid = xid
+        cookie.addr = addr
+        iocb.data = <void *> cookie
+        self.size += count
         return self.io_addiocb(iocb)
 
     def io_submit(self):
@@ -87,19 +104,33 @@ cdef class AIO:
         cdef int i = 0
         cdef caio.iocb *iocb
         cdef caio.io_event *event
+        cdef long long xid
+        cdef size_t addr
+        cdef size_t io_addr
+        cdef size_t count
+        cdef caio.aio_cookie_t cookie
 
         ret = caio.io_getevents(self.ctx, 0, self.curiocb, self.events, NULL)
         complete = {'reads':[], 'writes':[], 'total':0}
         while i < ret:
             iocb = <caio.iocb *>(self.events[i].obj)
             event = <caio.io_event *>(&self.events[i])
-            xid = <unsigned long long> iocb.data
+            cookie = <caio.aio_cookie_t> iocb.data
+            xid = cookie.xid
+            addr = cookie.addr
             if iocb.aio_lio_opcode == IO_CMD_PREAD:
-                complete['reads'].append((xid, event.res, PyString_FromString(<char *>iocb.u.c.buf)))
-                PyMem_Free(iocb.u.c.buf)
+                complete['reads'].append((xid, event.res, PyString_FromStringAndSize(<char *>iocb.u.c.buf, event.res)))
+                io_addr = <size_t> iocb.u.c.buf
+                PyMem_Free(<void *>io_addr)
             elif iocb.aio_lio_opcode == IO_CMD_PWRITE:
                 complete['writes'].append((xid, event.res))
-                PyMem_Free(iocb.u.c.buf)
+                io_addr = <size_t> iocb.u.c.buf
+                PyMem_Free(<void *>io_addr)
+            count = self.addresses.pop(addr)
+            if io_addr != addr:
+                PyMem_Free(<void *> addr)
+            PyMem_Free(<void *> cookie)
+            self.size -= count
             i += 1
 
         complete['total'] = ret

@@ -153,8 +153,10 @@ def handle(*args, **kwargs):
     """
     if htype == 'HARD_HANDLE':
         return HardHandle(*args, **kwargs)
+    elif htype == 'AIO_HANDLE':
+        return AIOHandle(*args, **kwargs)
     elif htype == 'NULL_HANDLE':
-        return NULLHandle(*args, **kwargs)
+        return NullHandle(*args, **kwargs)
     elif htype == 'REPLICA_HANDLE':
         return ReplicaHandle(*args, **kwargs)
 
@@ -532,7 +534,78 @@ class HardHandle(NFSFileHandle):
         os.fsync(fd)
         os.close(fd)
         self.fattr4_time_metadata = converttime()
-        return count  
+        return count
+
+class AIOHandle(HardHandle):
+
+    def get_fhclass(self):
+        return "aio"
+
+    def get_fd(self, fds, direct):
+        if direct:
+            fd = fds['DIRECT'].get(self.file, None)
+            if fd == None:
+                fd = fds['INDIRECT'].get(self.file, None)
+                if fd is not None:
+                    os.close(fd)
+                    del fds['INDIRECT'][self.file]
+                fd = os.open(self.file, os.O_RDWR|os.O_DIRECT)
+                fds['DIRECT'][self.file] = fd
+        else:
+            fd = fds['INDIRECT'].get(self.file, None)
+            if fd == None:
+                fd = fds['DIRECT'].get(self.file, None)
+                if fd is not None:
+                    os.close(fd)
+                    del fds['DIRECT'][self.file]
+                fd = os.open(self.file, os.O_RDWR)
+                fds['INDIRECT'][self.file] = fd
+        return fd
+
+    def read(self, xid, aio, fds, offset, count):
+        if self.fattr3_type != NF3REG:
+            raise "read called on non file!"
+
+        direct = (count % 512 == 0 and offset % 512 == 0)
+        fd = self.get_fd(fds, direct)
+        aio.io_read(fd, count, offset, xid)
+        self.fattr3_time_access = converttime()
+        return None
+
+    def write(self, xid, aio, fds, offset, data, count=0, stable=UNSTABLE):
+        if self.fattr3_type != NF3REG:
+            raise "write called on non file!"
+        if len(data) == 0: 
+            return 0
+        self.fattr3_change += 1
+        direct = (len(data) % 512 == 0 and offset % 512 == 0)
+        fd = self.get_fd(fds, direct)
+        aio.io_write(fd, data, len(data), offset, xid)
+        self.fattr3_time_metadata = converttime()
+        self.fattr3_size += len(data)
+        return len(data)
+
+class NullHandle(HardHandle):
+
+    def get_fhclass(self):
+        return "null"
+
+    def read(self, offset, count):
+        if self.fattr3_type != NF3REG:
+            raise "read called on non file!"
+
+        self.fattr3_time_access = converttime()
+        return str('a' * count)
+
+    def write(self, offset, data, count=0, stable=UNSTABLE):
+        if self.fattr3_type != NF3REG:
+            raise "write called on non file!"
+        if len(data) == 0: 
+            return 0
+        self.fattr3_change += 1
+        self.fattr3_time_metadata = converttime()
+        self.fattr3_size += len(data)
+        return len(data)
 
 class CallBackProxy(object):
     def cb_create(self, opcode, filename):

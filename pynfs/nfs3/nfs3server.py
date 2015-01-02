@@ -40,13 +40,21 @@ from xdrdef.mnt3_type import *
 from xdrdef.mnt3_pack import *
 import rpc.rpc as rpc
 from rpc.rpc import supported
+from rpc.rpc import RPCVERSION, _readmask, _writemask, _bothmask, select 
 from rpc.rpc_const import *
+from rpc.rpc_type import *
+from rpc import rpc_pack
 import signal
 from fs import *
-import random
 from xdrlib import Error as XDRError
 
 from args import args, parser
+
+cwd = os.getcwd()
+
+import struct
+sys.path.append("%s/../../aio" % cwd)
+import caio
 
 unacceptable_names = [ "", ".", ".." ]
 unacceptable_characters = [ "/", "~", "#", ]
@@ -59,6 +67,9 @@ fh.setFormatter(formatter)
 logger.setLevel(logging.WARNING)
 fh.setLevel(logging.WARNING)
 logger.addHandler(fh)
+
+NFS3AIO_ADDED = 200014
+SUBMITTED = 6
 
 def verify_name(name):
     """Check potential filename and return appropriate error code"""
@@ -380,10 +391,11 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_READ3args()
         try:
             status = NFS3_OK
+            self.curr_fh = self.rootfh.lookup(str(args.file.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             if self.curr_fh.get_type() == NF3DIR:
-                return NFS3Error(NFS3ERR_ISDIR)
+                raise NFS3Error(NFS3ERR_ISDIR)
             if self.curr_fh.get_type() != NF3REG:
                 raise NFS3Error(NFS3ERR_INVAL)
             buf = self.curr_fh.read(args.offset, args.count)
@@ -410,10 +422,11 @@ class NFS3Server(rpc.RPCServer):
         args = self.nfs3unpacker.unpack_WRITE3args()
         try:
             status = NFS3_OK
+            self.curr_fh = self.rootfh.lookup(str(args.file.data))
             if not self.curr_fh:
                 raise NFS3Error(NFS3ERR_NOENT)
             if self.curr_fh.get_type() == NF3DIR:
-                return NFS3Error(NFS3ERR_ISDIR)
+                raise NFS3Error(NFS3ERR_ISDIR)
             if self.curr_fh.get_type() != NF3REG:
                 raise NFS3Error(NFS3ERR_INVAL)
             attributes = self._get_fattr3_attributes(self.curr_fh)
@@ -854,8 +867,406 @@ class NFS3Server(rpc.RPCServer):
         result = COMMIT3res(status=status, resok=resok, resfail=resfail)
         return result
 
+class NFS3AIOServer(NFS3Server):
+
+    def __init__(self, rootfh, host, port, pubfh = None):
+        NFS3Server.__init__(self, rootfh, port=port, host=host, pubfh=rootfh)
+        self.QUEUE_DEPTH = 32
+        self.ios = 0
+        self.aio = caio.AIO()
+        self.aio.io_setup(self.QUEUE_DEPTH)
+        self.aio.io_reset()
+        self.now = datetime.datetime.now()
+        self.xid_res = {}
+        self.fds = {'DIRECT': {}, 'INDIRECT': {}}
+        self.lock = threading.Lock()
+
+    def package_response(self, xid, cred, result, nfs3packer, rpcpacker):
+        flavor = cred.flavor
+        rreply = None
+        reply_stat = MSG_ACCEPTED
+        nfs3packer.reset()
+        ret = str(result).split("(")[0]
+        getattr(nfs3packer, "pack_%s" % ret)(result)
+        a_stat, proc_response = rpc.SUCCESS, nfs3packer.get_buffer()
+        proc_response = self.security[flavor].secure_data(proc_response, cred)
+        verf = self.security[flavor].make_reply_verf(cred, a_stat)
+        areply = accepted_reply(verf, rpc_reply_data(a_stat, ''))
+        body = reply_body(reply_stat, areply, rreply)
+        msg = rpc_msg(xid, rpc_msg_body(REPLY, rbody=body))
+        rpcpacker.reset()
+        rpcpacker.pack_rpc_msg(msg)
+        return rpcpacker.get_buffer() + proc_response
+
+    def process_reads(self, fh, buf, count):
+        attributes = self._get_fattr3_attributes(fh)
+        post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+        eof = 1
+        if (len(buf) < count):
+            eof = 0
+        resok = READ3resok(file_attributes=post_obj_attr, count=len(buf), eof=eof, data=buf)
+        resfail = READ3resfail(file_attributes=post_obj_attr)
+        result = READ3res(status=NFS3_OK, resok=resok, resfail=resfail)
+        return result
+
+    def process_writes(self, fh, pre_obj_attr, size, stable):
+        attributes = self._get_fattr3_attributes(fh)
+        post_obj_attr = post_op_attr(attributes_follow=TRUE, attributes=attributes)
+        obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
+        resok = WRITE3resok(file_wcc=obj_wcc, count=size, committed=stable, verf=fh.write_verifier)
+        post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+        obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
+        resfail = WRITE3resfail(file_wcc=obj_wcc)
+        result = WRITE3res(status=NFS3_OK, resok=resok, resfail=resfail)
+        return result
+
+    def event_write_thread(self, th_name, fd, chunksize=1<<20, debug=0):
+        i = 0
+        conn = self.sockets[fd]
+        flag = 0
+        while 1:
+            i += 1
+            if self.writebufs[th_name]:
+                count = conn.send(self.writebufs[th_name])
+                self.writebufs[th_name] = self.writebufs[th_name][count:]
+                if last == 0x80000000L and not self.writebufs[th_name] and flag == 1:
+                    self.lock.release()
+                    flag = 0
+            elif self.recordbufs[th_name]:
+                data = self.recordbufs[th_name][0]
+                chunk = data[:chunksize]
+                if len(data) > chunksize:
+                    last = 0
+                    self.recordbufs[th_name][0] = data[chunksize:]
+                    if flag == 0:
+                        self.lock.acquire()
+                        flag = 1 
+                else:
+                    last = 0x80000000L
+                    del self.recordbufs[th_name][0]
+                mark = struct.pack('>L', last | len(chunk))
+                self.writebufs[th_name] = (mark + chunk)
+                # Duplicated code
+                count = conn.send(self.writebufs[th_name])
+                self.writebufs[th_name] = self.writebufs[th_name][count:]
+                if last == 0x80000000L and not self.writebufs[th_name] and flag == 1:
+                    self.lock.release()
+                    flag = 0
+            else:
+                self.p.register(fd, _readmask)
+                break
+
+    def process_aio_thread_read(self, xid, res, buf):
+        cred = self.xid_res[xid]['cred']
+        fh = self.xid_res[xid]['fh']
+        count = self.xid_res[xid]['count']
+        self.xid_res[xid]['ref'] -= 1
+        if self.xid_res[xid]['ref'] == 0:
+            del self.xid_res[xid]
+        result = self.process_reads(fh, buf, count)
+        return result
+
+    def process_aio_thread_write(self, xid, res):
+        cred = self.xid_res[xid]['cred']
+        fh = self.xid_res[xid]['fh']
+        pre_obj_attr = self.xid_res[xid]['pre_obj_attr']
+        stable = self.xid_res[xid]['stable']
+        self.xid_res[xid]['ref'] -= 1
+        if self.xid_res[xid]['ref'] == 0:
+            del self.xid_res[xid]
+        result = self.process_writes(fh, pre_obj_attr, res, stable)
+        return result
+
+    def process_aio_thread(self, data = None):
+        if data is None:
+           return
+        fd = data['fd']
+        th = threading.current_thread()
+        th_name = th.name
+        self.recordbufs[th_name] = []
+        self.writebufs[th_name] = []
+        nfs3packer = NFS3Packer()
+        rpcpacker =  rpc_pack.RPCPacker()
+        for xid, res, buf in data['reads']:
+            cred = self.xid_res[xid]['cred']
+            result = self.process_aio_thread_read(xid, res, buf)
+            reply = self.package_response(xid, cred, result, nfs3packer, rpcpacker)
+            self.recordbufs[th_name].append(reply)
+            self.p.register(fd, _bothmask)
+        for xid, res in data['writes']:
+            cred = self.xid_res[xid]['cred']
+            result = self.process_aio_thread_write(xid, res)
+            reply = self.package_response(xid, cred, result, nfs3packer, rpcpacker)
+            self.recordbufs[th_name].append(reply)
+            self.p.register(fd, _bothmask)
+        self.event_write_thread(th_name, fd)
+        del self.recordbufs[th_name]
+        del self.writebufs[th_name]
+
+    def process_aios(self):
+        self.aio.io_submit()
+        ret = 0
+        if not self.recordbufs.has_key(self.fd):
+            return
+        data = {'reads': [], 'writes': [], 'fd': self.fd}
+        while True:
+            r = self.aio.io_getevents()
+            ret += r['total']
+            data['reads'].extend(r['reads'])
+            data['writes'].extend(r['writes'])
+            if ret == self.ios:
+                break
+
+        thr = threading.Thread(
+               target = self.process_aio_thread,
+               kwargs = {
+                         'data': data
+                        }
+              )
+        thr.setDaemon(True)
+        thr.start()
+
+        for fd in self.fds['DIRECT'].values():
+            os.close(fd)
+        for fd in self.fds['INDIRECT'].values():
+            os.close(fd)
+        self.fds = {'DIRECT': {}, 'INDIRECT': {}}
+        self.ios = 0
+        self.aio.io_reset()
+        self.now = datetime.datetime.now()
+
+    def run(self, debug=0):
+        while 1:
+            res = self.p.poll(100)
+            if self.ios == self.QUEUE_DEPTH or \
+                ((datetime.datetime.now() - self.now).microseconds > 10000 and self.ios > 0):
+                self.process_aios()
+            for fd, event in res:
+                self.fd = fd
+                if event & select.POLLHUP:
+                    self.event_hup(fd)
+                elif event & select.POLLNVAL:
+                    self.p.unregister(fd)
+                elif event & ~(select.POLLIN | select.POLLOUT):
+                    self.event_error(fd)
+                else:
+                    if event & select.POLLOUT:
+                        self.event_write(fd)
+                    # This must be last since may call close
+                    if event & select.POLLIN:
+                        if fd == self.s.fileno():
+                            self.event_connect(fd)
+                        else:
+                            data = self.sockets[fd].recv(self.recv_size)
+                            if data:
+                                self.event_read(fd, data)
+                            else:
+                                self.event_close(fd)
+
+    def event_read(self, fd, data, debug=0):
+        """Reads incoming record marked packets
+
+        Also responds to command codes sent as encoded integers
+        """
+        if debug: logger.info("SERVER: In read event for %i" % fd)
+        self.readbufs[fd] += data
+        loop = True
+        while loop:
+            loop = False
+            str = self.readbufs[fd]
+            if len(str) >= 4:
+                packetlen = struct.unpack('>L', str[0:4])[0]
+                last = 0x80000000L & packetlen
+                packetlen &= 0x7fffffffL
+                if len(str) >= 4 + packetlen:
+                    self.packetbufs[fd].append(str[4:4 + packetlen])
+                    self.readbufs[fd] = str[4 + packetlen:]
+                    if self.readbufs[fd]:
+                        loop = True # We've received data past last 
+                    if last:
+                        if debug: logger.info("SERVER: Received record from %i" % fd)
+                        recv_data = ''.join(self.packetbufs[fd])
+                        self.packetbufs[fd] = []
+                        if len(recv_data) == 4:
+                            reply = self.event_command(fd, struct.unpack('>L', recv_data)[0])
+                        else:
+                            # All handle_* functions are called in compute_reply
+                            reply = self.compute_reply(recv_data)
+                        if reply is not None:
+                            self.recordbufs[fd].append(reply)
+                            self.p.register(fd, _bothmask)
+            if self.ios == self.QUEUE_DEPTH or \
+                ((datetime.datetime.now() - self.now).microseconds > 10000 and self.ios > 0):
+                self.process_aios()
+                        
+    def compute_reply(self, recv_data):
+        # Decode RPC specific info
+        self.rpcunpacker.reset(recv_data)
+        try:
+            recv_msg = self.rpcunpacker.unpack_rpc_msg()
+        except xdrlib.Error, e:
+            print "XDRError", e
+            return
+        if recv_msg.body.mtype != CALL:
+            print "Received a REPLY, expected a CALL"
+            return
+        # Check for reasons to deny the call
+        call = recv_msg.body.cbody
+        cred = call.cred
+        flavor = cred.flavor
+        #print call
+        reply_stat = MSG_ACCEPTED
+        areply = rreply = None
+        proc_response = ''
+        if call.rpcvers != RPCVERSION:
+            rreply = rejected_reply(RPC_MISMATCH,
+                                    rpc_mismatch_info(RPCVERSION, RPCVERSION))
+            reply_stat = MSG_DENIED
+        elif flavor not in self.security: # STUB
+            # Auth checking
+            rreply = rejected_reply(AUTH_ERROR, astat=AUTH_FAILED)
+            reply_stat = MSG_DENIED
+        # At this point recv_msg has been accepted
+        # Check for reasons to fail before calling handle_*
+        meth_data = recv_data[self.rpcunpacker.get_position():]
+        meth_data = self.security[flavor].unsecure_data(meth_data, cred)
+        if rreply:
+            pass
+        elif self.prog != call.prog:
+            verf = self.security[flavor].make_reply_verf(cred, PROG_UNAVAIL)
+            areply = accepted_reply(verf, rpc_reply_data(PROG_UNAVAIL))
+        elif self.vers != call.vers:
+            verf = self.security[flavor].make_reply_verf(cred, PROG_MISMATCH)
+            mismatch = rpc_mismatch_info(self.vers, self.vers)
+            areply = accepted_reply(verf,
+                                    rpc_reply_data(PROG_MISMATCH,
+                                                   mismatch_info=mismatch))
+        elif not hasattr(self, "handle_request"):
+            verf = self.security[flavor].make_reply_verf(cred, PROG_UNAVAIL)
+            areply = accepted_reply(verf, rpc_reply_data(PROC_UNAVAIL))
+        else:
+            method = getattr(self, "handle_request")
+            a_stat, proc_response = method(meth_data, cred, call.proc, recv_msg.xid)
+            if a_stat == PROG_UNAVAIL:
+                verf = self.security[flavor].make_reply_verf(cred, PROG_UNAVAIL)
+                areply = accepted_reply(verf, rpc_reply_data(PROC_UNAVAIL))
+            else:
+                verf = self.security[flavor].make_reply_verf(cred, a_stat)
+                if a_stat == SUBMITTED:
+                    return None
+                if a_stat == SUCCESS:
+                    proc_response = self.security[flavor].secure_data(proc_response, cred)
+                areply = accepted_reply(verf, rpc_reply_data(a_stat, ''))
+        # Build reply
+        body = reply_body(reply_stat, areply, rreply)
+        msg = rpc_msg(recv_msg.xid, rpc_msg_body(REPLY, rbody=body))
+        self.rpcpacker.reset()
+        self.rpcpacker.pack_rpc_msg(msg)
+        return self.rpcpacker.get_buffer() + proc_response
+
+    def handle_request(self, data, cred, op, xid):
+        opname = nfs_opnum3.get(op, 'nfsproc3_null').lower()
+        if op == 0:
+            return getattr(self, opname.lower())(data, cred)
+
+        if not self.xid_res.has_key(xid):
+            self.xid_res[xid] = {'ref' : 0, 'cred': cred}
+        self.xid_res[xid]['ref'] += 1
+
+        self.nfs3unpacker.reset(data)
+        func = getattr(self, opname.lower(), None)
+        if not func:
+            return rpc.PROG_UNAVAIL, ''
+        if opname.lower() in ['nfs3proc_read', 'nfs3proc_write']:
+            result = getattr(self, opname.lower())(data, cred, xid)
+        else:
+            result = getattr(self, opname.lower())(data, cred)
+        try:
+            self.nfs3unpacker.done()
+        except XDRError:
+            logger.error(str(repr(self.nfs3unpacker.get_buffer())))
+            return rpc.GARBAGE_ARGS, ''
+        if result is None:
+            logger.error("NFS operation(%s) not supported" % opname)
+            return rpc.GARBAGE_ARGS, ''
+        if result == NFS3AIO_ADDED:
+            return SUBMITTED, ''
+        self.xid_res[xid]['ref'] -= 1
+        if self.xid_res[xid]['ref'] == 0:
+            del self.xid_res[xid]
+        self.nfs3packer.reset()
+        ret = str(result).split("(")[0]
+        getattr(self.nfs3packer, "pack_%s" % ret)(result)
+        return rpc.SUCCESS, self.nfs3packer.get_buffer()
+
+    def nfs3proc_read(self, data, cred, xid):
+        args = self.nfs3unpacker.unpack_READ3args()
+        try:
+            status = NFS3_OK
+            self.curr_fh = self.rootfh.lookup(str(args.file.data))
+            if not self.curr_fh:
+                raise NFS3Error(NFS3ERR_NOENT)
+            if self.curr_fh.get_type() == NF3DIR:
+                raise NFS3Error(NFS3ERR_ISDIR)
+            if self.curr_fh.get_type() != NF3REG:
+                raise NFS3Error(NFS3ERR_INVAL)
+            buf = self.curr_fh.read(xid, self.aio, self.fds, args.offset, args.count)
+            self.xid_res[xid]['fh'] = self.curr_fh
+            self.xid_res[xid]['count'] = args.count
+            self.ios += 1
+            return NFS3AIO_ADDED
+        except NFS3Error as e:
+            logger.error("nfs3proc_read : %s" % e)
+            status = e.code
+            attributes = {}
+            try:
+                post_obj_attr
+            except:
+                post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            resok = None
+        resfail = READ3resfail(file_attributes=post_obj_attr)
+        result = READ3res(status=status, resok=resok, resfail=resfail)
+        return result
+
+    def nfs3proc_write(self, data, cred, xid):
+        args = self.nfs3unpacker.unpack_WRITE3args()
+        try:
+            status = NFS3_OK
+            self.curr_fh = self.rootfh.lookup(str(args.file.data))
+            if not self.curr_fh:
+                raise NFS3Error(NFS3ERR_NOENT)
+            if self.curr_fh.get_type() == NF3DIR:
+                raise NFS3Error(NFS3ERR_ISDIR)
+            if self.curr_fh.get_type() != NF3REG:
+                raise NFS3Error(NFS3ERR_INVAL)
+            attributes = self._get_fattr3_attributes(self.curr_fh)
+            pre_obj_attr = pre_op_attr(attributes_follow=TRUE, attributes=attributes)
+            size = self.curr_fh.write(xid, self.aio, self.fds, args.offset, args.data, args.count, args.stable)
+            self.xid_res[xid]['fh'] = self.curr_fh
+            self.xid_res[xid]['pre_obj_attr'] = pre_obj_attr
+            self.xid_res[xid]['stable'] = args.stable
+            self.ios += 1
+            return NFS3AIO_ADDED
+        except NFS3Error as e:
+            logger.error("nfs3proc_write : %s" % e)
+            status = e.code
+            attributes = {}
+            try:
+                pre_obj_attr
+            except:
+                pre_obj_attr = pre_op_attr(attributes_follow=FALSE, attributes=attributes)
+            post_obj_attr = post_op_attr(attributes_follow=FALSE, attributes=attributes)
+            obj_wcc = wcc_data(before=pre_obj_attr, after=post_obj_attr)
+            resok = None
+        resfail = WRITE3resfail(file_wcc=obj_wcc)
+        result = WRITE3res(status=status, resok=resok, resfail=resfail)
+        return result
+
 def startnfs3server(rootfh, port=2049, host='', pubfh=None, raft = None):
-    server = NFS3Server(rootfh, port=port, host=host, pubfh=directory)
+    if htype == 'AIO_HANDLE':
+        server = NFS3AIOServer(rootfh, port=port, host=host, pubfh=directory)
+    else:
+        server = NFS3Server(rootfh, port=port, host=host, pubfh=directory)
     try:
         import portmap as portmap
         if not portmap.set(NFS_PROGRAM, NFS_V3, 6, port):
@@ -894,9 +1305,13 @@ def mnt3server(rootfh, port=32767, host=''):
 
 def startup(host, port, directory, raft = None):
     if htype == 'HARD_HANDLE':
-        rootfh = HardHandle(None, "/", None, directory, int(random.randint(2000, 10000)))
+        rootfh = HardHandle(None, "/", None, directory, 43567)
+    elif htype == 'AIO_HANDLE':
+        rootfh = AIOHandle(None, "/", None, directory, 43567)
+    elif htype == 'NULL_HANDLE':
+        rootfh = NullHandle(None, "/", None, directory, 43567)
     elif htype == 'REPLICA_HANDLE':
-        rootfh = ReplicaHandle(None, "/", None, directory, raft, int(random.randint(2000, 10000)))
+        rootfh = ReplicaHandle(None, "/", None, directory, raft, 43567)
     else:
         assert 0, "unknown htype"
 
