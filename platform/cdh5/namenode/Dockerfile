@@ -1,6 +1,9 @@
 # docker base image for cdh5. use this and build the namenode and
 # datanodes.
 
+# This particular image is setup to run the resource manager and the
+#  name node on the same docker instance.
+
 FROM muralinagaraj/cdh5-base
 MAINTAINER Murali Nagaraj <murali.nagaraj@cachebox.com>
 
