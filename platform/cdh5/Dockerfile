@@ -1,0 +1,12 @@
+# docker base image for cdh5. use this and build the namenode and
+# datanodes. build as docker build -t muralinagaraj/cdh5-base
+
+FROM ubuntu:precise
+MAINTAINER Murali Nagaraj <murali.nagaraj@cachebox.com>
+
+COPY cdh5-repository_1.0_all.deb /
+RUN dpkg -i cdh5-repository_1.0_all.deb
+RUN apt-get update
+RUN apt-get install -y --force-yes --no-install-recommends openjdk-7-jre hadoop-lzo
+
+CMD ["/bin/bash"]
