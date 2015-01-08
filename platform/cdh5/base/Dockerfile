@@ -8,6 +8,6 @@ COPY gplextras.list /etc/apt/sources.list.d/gplextras.list
 COPY cdh5-repository_1.0_all.deb /
 RUN dpkg -i cdh5-repository_1.0_all.deb
 RUN apt-get update
-RUN apt-get install -y --force-yes --no-install-recommends openjdk-7-jre
+RUN apt-get install -y --force-yes --no-install-recommends openjdk-7-jre avro-libs hadoop-yarn hadoop-hdfs
 
 CMD ["/bin/bash"]
