@@ -1,4 +1,4 @@
-SUBDIRS = base namenode datanode
+SUBDIRS = base namenode datanode clientnode
 
 .PHONY: subdirs $(SUBDIRS)
 subdirs: $(SUBDIRS)
