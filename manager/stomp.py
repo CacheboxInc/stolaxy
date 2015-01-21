@@ -3,9 +3,9 @@ import getopt
 import sys
 
 from configdb import session
-from hadoop import create_hadoop
+from hadoop import create_mapreduce
 
-APP_TYPES = ('hadoop', 'mapr', 'hbase', 'impala', 'spark')
+APP_TYPES = ('mapreduce', 'hbase', 'impala', 'spark')
 APP_TYPES_STRING = '|'.join(APP_TYPES)
 
 class StolaxyCmd(Cmd):
@@ -33,6 +33,7 @@ quit to quit.
         
         def help():
             print 'create app <%s> <app_name>' % APP_TYPES_STRING
+            print 'create host <ipaddress>'
 
         if len(x) == 0:
             help()
@@ -45,8 +46,8 @@ quit to quit.
                     help()
                     return
 
-                if apptype == 'hadoop':
-                    create_hadoop(name = x[2])
+                if apptype == 'mapreduce':
+                    create_mapreduce(name = x[2])
 
             else:
                 help()
