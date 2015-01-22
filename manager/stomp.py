@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from cmd import Cmd
 import getopt
 import sys
@@ -18,22 +20,22 @@ quit to quit.
     prompt = "stolaxy> "
 
     def do_help(self, x):
-        print 'available commands:'
-        print 'create'
-        print 'list'
+        print ('available commands:')
+        print ('create')
+        print ('list')
 
     def do_list(self, x):
         x = x.split()
         if len(x) == 0:
-            print 'nodes ...'
+            print ('nodes ...')
             return
 
     def do_create(self, x):
         x = x.split()
         
         def help():
-            print 'create app <%s> <app_name>' % APP_TYPES_STRING
-            print 'create host <ipaddress>'
+            print ('create app <%s> <app_name>',  APP_TYPES_STRING)
+            print ('create host <ipaddress>')
 
         if len(x) == 0:
             help()
