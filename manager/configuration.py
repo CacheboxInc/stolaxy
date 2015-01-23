@@ -1,4 +1,6 @@
-from configdb import Configuration
+import datetime
+
+from configdb import DBConfiguration, DBGroup
 from configdb import session
 from netaddr import *
 from sqlalchemy.orm.exc import NoResultFound
@@ -8,16 +10,26 @@ MAX_NETWORKS_BYTEARRAY_LEN = MAX_NETWORKS >> 3
 
 VIRTUAL_IP_NETWORK_START = '10.0.0.0/24'
 
-class ConfigurationObject(object):
+class Configuration(object):
     def __init__(self):
         try:
-            configuration = session.query(Configuration).one()
+            configuration = session.query(DBConfiguration).one()
         except NoResultFound:
-            configuration = Configuration(
+            configuration = DBConfiguration(
                 vipaddresses = bytearray(MAX_NETWORKS_BYTEARRAY_LEN),
                 vipallocate = VIRTUAL_IP_NETWORK_START
                 )
             
+            now = datetime.datetime.now()
+            defaultgroup = DBGroup(
+                created = now,
+                modified = now,
+                name = 'default'
+                )
+
+            session.add(configuration)
+            session.add(defaultgroup)
+
             session.commit()
 
         self.configuration = configuration
@@ -32,4 +44,4 @@ class ConfigurationObject(object):
         configuration.vipallocate = str(network)
         return vipnetwork
 
-configuration = ConfigurationObject()
+configuration = Configuration()

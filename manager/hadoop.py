@@ -1,23 +1,34 @@
 #!/usr/bin/env python3
 
+import datetime
+import docker
 import random
 import subprocess
+import sys
+import threading
+import traceback
 import uuid
 
 from configuration import *
+from configdb import *
 from host import *
 from ports import *
 
-def create_mapreduce(name = None):
+_local = threading.local()
 
-    cluster_id = uuid.uuid4().hex[0:16]
+def create_mapreduce1(user, name = None):
 
+    _local.dockerinstances = []
     hosts = Host.getHosts()
     if len(hosts) == 0:
         print ('not enough physical hosts to launch application!')
-        return False
+        raise
 
     print ('creating a hadoop - map reduce cluster with %d hosts' % len(hosts))
+
+    cluster_id = uuid.uuid4().hex[0:16]
+    if name is None:
+        name = cluster_id
 
     namenode_host = random.choice(hosts)
     datanodes = hosts
@@ -60,12 +71,26 @@ def create_mapreduce(name = None):
         datanode.ports = datanode_host_ports.ports
 
     vipindex = 1
+    vipnetwork = configuration.assignVIPNetwork()
+
+    now = datetime.datetime.now()
+    application = DBApplication(
+        cluster_id = cluster_id,
+        name = name,
+        vipnetwork = str(vipnetwork),
+        created = now,
+        modified = now,
+        owner = user
+        )
+    
+    session.add(application)
+    session.flush()
+
     fqdn = '%s.weave.local' % cluster_id
     namenode_fqdn = 'namenode%s.%s' % (vipindex, fqdn)
-
-    vipnetwork = configuration.assignVIPNetwork()
     namenode_vipaddress = str(vipnetwork[vipindex])
     vipindex += 1
+
     namenode_launch_cmd = ' '.join((
             "weave run --with-dns",
             '%s/24' % namenode_vipaddress,
@@ -82,7 +107,7 @@ def create_mapreduce(name = None):
     
     print ('launching namenode')    
     print (namenode_launch_cmd)
-
+    
     nn = subprocess.Popen(
         (
             "ssh",
@@ -97,7 +122,23 @@ def create_mapreduce(name = None):
     
     if nn.returncode != 0:
         print ('error launching namenode: %s, %s' % (out, err))
-        return False
+        raise
+
+    docker_id = out.decode().strip('\n')
+    _local.dockerinstances.append((
+            config['namenode']['namenode_physical_host'],
+            docker_id))
+
+    vnode = DBVirtualNode(
+        created = now,
+        modified = now,
+        vipaddress = namenode_vipaddress,
+        pipaddress = config['namenode']['namenode_physical_host'],
+        application_id = application.cluster_id,
+        docker_id = docker_id
+        )
+
+    session.add(vnode)
 
     for datanode in config['datanodes']:
         datanode_vipaddress = str(vipnetwork[vipindex])
@@ -136,12 +177,38 @@ def create_mapreduce(name = None):
     
         if dn.returncode != 0:
             print('error launching datanode: %s %s' % (out ,err))
-            return False
+            raise
 
-    session.commit()
-#    print (config)
-    return True
+        docker_id = out.decode().strip('\n')
+        _local.dockerinstances.append((
+                datanode['datanode_physical_host'],
+                docker_id))
 
+        vnode = DBVirtualNode(
+            created = now,
+            modified = now,
+            vipaddress = datanode_vipaddress,
+            pipaddress = datanode['datanode_physical_host'],
+            application_id = application.cluster_id,
+            docker_id = docker_id
+            )
+
+        session.add(vnode)
+
+    return
+
+def create_mapreduce(user, name = None):
+    try:
+        ret = create_mapreduce1(user, name)
+    except:
+        traceback.print_exc()
+        session.rollback()
+        for host, instance in _local.dockerinstances:
+            docker.cleanup_instance(host, instance)
+    else:
+        session.commit()
+        return ret
+        
 if __name__ == '__main__':
-    create_mapreduce()
-    create_mapreduce()
+    create_mapreduce('jdoe')
+    create_mapreduce('jdoe')

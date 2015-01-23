@@ -8,12 +8,13 @@ FROM muralinagaraj/cdh5-base
 MAINTAINER Murali Nagaraj <murali.nagaraj@cachebox.com>
 
 RUN apt-get update
-RUN apt-get install -y --force-yes --no-install-recommends hadoop-client
+RUN apt-get install -y --force-yes --no-install-recommends hadoop-client openssh-server vim-tiny
 RUN mkdir -p /cachebox/
 ADD conf /cachebox/conf/
 
 ADD gencn.py /cachebox/
 ADD start.sh /cachebox/start.sh
+
 ENTRYPOINT ["/cachebox/start.sh"]
 
 CMD ["/bin/bash"]

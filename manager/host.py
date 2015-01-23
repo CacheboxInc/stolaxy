@@ -1,7 +1,7 @@
 import datetime
 import sqlalchemy
 
-from configdb import PhysicalHost
+from configdb import DBPhysicalHost
 from configdb import session
 from ports import *
 
@@ -21,7 +21,7 @@ def create_host(ipaddress, name = None):
 
         now = datetime.datetime.now()
         ports = Ports.initPorts()
-        host = PhysicalHost(
+        host = DBPhysicalHost(
             ipaddress = ipaddress,
             created = now,
             modified = now,
@@ -53,7 +53,7 @@ class Host(object):
         return everything in the db.
         """
 
-        return session.query(PhysicalHost).all()
+        return session.query(DBPhysicalHost).all()
 
 if __name__ == '__main__':
     print (create_host('127.0.0.1'))
