@@ -11,8 +11,10 @@ import uuid
 
 from configuration import *
 from configdb import *
+from group import *
 from host import *
 from ports import *
+from user import *
 
 _local = threading.local()
 
@@ -73,6 +75,8 @@ def create_mapreduce1(user, name = None):
     vipindex = 1
     vipnetwork = configuration.assignVIPNetwork()
 
+    owner = User.get(user)
+
     now = datetime.datetime.now()
     application = DBApplication(
         cluster_id = cluster_id,
@@ -80,7 +84,7 @@ def create_mapreduce1(user, name = None):
         vipnetwork = str(vipnetwork),
         created = now,
         modified = now,
-        owner = user
+        owner = owner.id
         )
     
     session.add(application)
@@ -210,5 +214,8 @@ def create_mapreduce(user, name = None):
         return ret
         
 if __name__ == '__main__':
-    create_mapreduce('jdoe')
-    create_mapreduce('jdoe')
+
+    group1 = Group.create_or_get('group1')
+    user1 = User.create_or_get('user1', group1)
+    create_mapreduce('user1')
+    create_mapreduce('user3')

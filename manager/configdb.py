@@ -35,7 +35,7 @@ class DBGroup(Base):
     id = Column(Integer, primary_key = True)
     created = Column(DateTime, nullable=False)
     modified = Column(DateTime, nullable=False)
-    name = Column(String)
+    name = Column(String, unique = True)
     users = relationship("DBUser", backref="group")
 
     def __repr__(self):
@@ -59,7 +59,7 @@ class DBUser(Base):
     id = Column(Integer, primary_key = True)
     created = Column(DateTime, nullable=False)
     modified = Column(DateTime, nullable=False)
-    name = Column(String)
+    name = Column(String, unique = True)
     group_id = Column(Integer, ForeignKey('group.id'))
 
     def __repr__(self):
