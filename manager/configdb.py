@@ -170,6 +170,16 @@ docker_id %s
             self.docker_id
             )
 
+class DBDatastore(Base):
+    __tablename__ = 'datastore'
+    id = Column(Integer, primary_key=True)
+    created = Column(DateTime, nullable=False)
+    modified = Column(DateTime, nullable=False)
+    name = Column(String)
+    dtype = Column(String)
+    path = Column(String)
+    application_id = Column(Integer, ForeignKey('application.cluster_id'))
+
 engine = create_engine(CONFIG_DB)
  
 Base.metadata.create_all(engine)
