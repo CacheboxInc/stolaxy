@@ -314,11 +314,13 @@ def main():
         # make sure this is the last clause we handle in the if switch
         applications = Hadoop.listing()
         if applications.count() > 0:
-            print ("{:<32s}{:<16s}{:<16s}{:<32s}".format("id", "name", "owner", "created"))
+            print ("{:<32s}{:<16s}{:<16s}{:8s}{:<32s}".format("id", "name", "owner", "scale", "created"))
         for app in applications:
             owner = User.get_by_id(app.owner)
-            print ("{:<32s}{:<16s}{:<16s}{:<32s}".format(
-                    app.cluster_id, app.name, owner.name, str(app.created))
+            nhosts = len(set([node.pipaddress for node in app.nodes]))
+            
+            print ("{:<32s}{:<16s}{:<16s}{:<8d}{:<32s}".format(
+                    app.cluster_id, app.name, owner.name, nhosts, str(app.created))
                    )
     else:
         usage()
