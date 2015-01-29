@@ -86,6 +86,7 @@ class DBPhysicalHost(Base):
     modified = Column(DateTime, nullable=False)
     ports = Column(Binary)
     freeportstart = Column(Integer)
+    virtualhosts = relationship("DBVirtualNode", backref="physical_host")
 
     def __repr__(self):
         return """
@@ -95,12 +96,14 @@ name %s
 created %s
 modified %s
 freeportstart %s
+virtualhosts %s
 """ % (
             self.ipaddress,
             self.name,
             self.created,
             self.modified,
-            self.freeportstart
+            self.freeportstart,
+            self.virtualhosts
             )
 
 class DBApplication(Base):
@@ -148,10 +151,11 @@ class DBVirtualNode(Base):
     modified = Column(DateTime, nullable=False)
     vipaddress = Column(String(32), nullable=False)
     port = Column(Integer)
-    pipaddress = Column(String(32))
+#    pipaddress = Column(String(32))
     application_id = Column(Integer, ForeignKey('application.cluster_id'))
     docker_id = Column(String)
     vstate = Column(Integer)
+    pipaddress = Column(String, ForeignKey('physicalhost.ipaddress'))
 
     def __repr__(self):
         return """

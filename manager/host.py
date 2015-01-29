@@ -52,6 +52,10 @@ class Host(object):
     def delete(cls, ipaddress):
         query = session.query(DBPhysicalHost)
         host = query.filter(DBPhysicalHost.ipaddress == ipaddress).one()
+        if len(host.virtualhosts) != 0:
+            raise Exception("Host cannot be removed. %s virtual nodes exist." %
+                            len(host.virtualhosts))
+
         session.delete(host)
         session.commit()
 
@@ -123,18 +127,16 @@ def main():
         # make sure this is the last clause we handle in the if switch
         hosts = Host.listing()
         if hosts.count() > 0:
-            print ("{:<16s}{:<16s}{:<32s}".format("name", "ipaddress", "created"))
+            print ("{:<16s}{:<16s}{:<16s}{:<32s}".format("host name", "ipaddress", "app nodes", "created"))
         for host in hosts:
-            print ("{:<16s}{:<16s}{:<32s}".format(
-                    host.name, host.ipaddress, str(host.created))
+            print ("{:<16s}{:<16s}{:<16d}{:<32s}".format(
+                    host.name, host.ipaddress, len(host.virtualhosts), str(host.created))
                    )
     else:
         usage()
 
 if __name__ == '__main__':
-    main()
-    # print (create_host('127.0.0.1'))
-    # print (create_host('127.0.0.A'))
-    # hosts = Host.getHosts()
-    # for host in hosts:
-    #     print (host.ipaddress)
+    try:
+        main()
+    except:
+        print(sys.exc_info()[1])

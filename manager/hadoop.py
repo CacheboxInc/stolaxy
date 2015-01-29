@@ -27,12 +27,13 @@ class Hadoop(Application):
     def create1(cls, user, name = None):
         _local.dockerinstances = []
         hosts = Host.listing()
-        if len(hosts) == 0:
+        if hosts.count() == 0:
             print ('not enough physical hosts to launch application!')
             raise
 
-        print ('creating a hadoop - map reduce cluster with %d hosts' % len(hosts))
+        print ('creating a hadoop - map reduce cluster with %d hosts' % hosts.count())
 
+        hosts = list(hosts)
         cluster_id = uuid.uuid4().hex[0:16]
         if name is None:
             name = cluster_id
