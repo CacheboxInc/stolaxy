@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -x
 
 mkdir -p /data/1/dfs/nn /data/1/yarn/local /data/1/yarn/logs
 chown -R hdfs:hdfs /data/1/dfs/nn

@@ -117,6 +117,7 @@ class DBApplication(Base):
     owner = Column(Integer, ForeignKey("user.id"))
     atype = Column(Integer)
     nodes = relationship("DBVirtualNode", backref="application")
+    astate = Column(Integer)
 
     def __repr__(self):
         return """
@@ -127,6 +128,7 @@ created %s
 modified %s
 vipnetwork %s
 owner %s
+astate %s
 nodes %s
 """ % (
             self.cluster_id,
@@ -135,6 +137,7 @@ nodes %s
             self.modified,
             self.vipnetwork,
             self.owner,
+            self.astate,
             self.nodes
             )
     
@@ -148,6 +151,7 @@ class DBVirtualNode(Base):
     pipaddress = Column(String(32))
     application_id = Column(Integer, ForeignKey('application.cluster_id'))
     docker_id = Column(String)
+    vstate = Column(Integer)
 
     def __repr__(self):
         return """
@@ -160,6 +164,7 @@ port %s
 pipaddress %s
 application_id %s
 docker_id %s
+vstate = %s
 """ % (
             self.id,
             self.created,
@@ -168,7 +173,8 @@ docker_id %s
             self.port,
             self.pipaddress,
             self.application_id,
-            self.docker_id
+            self.docker_id,
+            self.vstate
             )
 
 class DBDatastore(Base):

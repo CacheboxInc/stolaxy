@@ -26,7 +26,7 @@ class Hadoop(Application):
     @classmethod
     def create1(cls, user, name = None):
         _local.dockerinstances = []
-        hosts = Host.getHosts()
+        hosts = Host.listing()
         if len(hosts) == 0:
             print ('not enough physical hosts to launch application!')
             raise
