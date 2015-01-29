@@ -115,6 +115,7 @@ class DBApplication(Base):
     created = Column(DateTime, nullable=False)
     modified = Column(DateTime, nullable=False)
     owner = Column(Integer, ForeignKey("user.id"))
+    atype = Column(Integer)
     nodes = relationship("DBVirtualNode", backref="application")
 
     def __repr__(self):
@@ -176,9 +177,35 @@ class DBDatastore(Base):
     created = Column(DateTime, nullable=False)
     modified = Column(DateTime, nullable=False)
     name = Column(String)
-    dtype = Column(String)
-    path = Column(String)
+    dtype = Column(Integer)
+    source_path = Column(String) # path on the host
+    container_path = Column(String, nullable = False) # path within the container
+    backing_volume = Column(String) # backing volume if relevant
     application_id = Column(Integer, ForeignKey('application.cluster_id'))
+
+    def __repr__(self):
+        return """
+DBDatastore:
+id %s
+created %s
+modified %s
+name %s
+dtype %s
+source_path %s
+container_path %s
+backing_volume %s
+application_id %s
+""" % (
+            self.id,
+            self.created,
+            self.modified,
+            self.name,
+            self.dtype,
+            self.source_path,
+            self.container_path,
+            self.backing_volume,
+            self.application_id
+            )
 
 engine = create_engine(CONFIG_DB)
  

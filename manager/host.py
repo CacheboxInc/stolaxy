@@ -3,6 +3,7 @@ import sqlalchemy
 
 from configdb import DBPhysicalHost
 from configdb import session
+from configuration import *
 from ports import *
 
 def create_host(ipaddress, name = None):

@@ -11,6 +11,11 @@ class User(object):
     def get(cls, name):
         query = session.query(DBUser)
         return query.filter(DBUser.name == name).one()
+    
+    @classmethod
+    def get_by_id(cls, id):
+        query = session.query(DBUser)
+        return query.filter(DBUser.id == id).one()
 
     @classmethod
     def create_or_get(cls, name, group):

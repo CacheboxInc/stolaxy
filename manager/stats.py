@@ -15,6 +15,10 @@ hosts = session.query(DBPhysicalHost).all()
 for host in hosts:
     print(host)
 
+datastores = session.query(DBDatastore).all()
+for datastore in datastores:
+    print(datastore)
+
 applications = session.query(DBApplication).all()
 for app in applications:
     print(app)

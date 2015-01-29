@@ -1,7 +1,6 @@
 import datetime
 
-from configdb import DBConfiguration, DBGroup
-from configdb import session
+from configdb import *
 from netaddr import *
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -12,6 +11,14 @@ VIRTUAL_IP_NETWORK_START = '10.0.0.0/24'
 
 class Configuration(object):
     def __init__(self):
+        self.application_types = {
+            'MAPREDUCE':0,
+            'PIG':1,
+            'HIVE':2,
+            'HBASE':3,
+            'SPARK':4
+            }
+
         try:
             configuration = session.query(DBConfiguration).one()
         except NoResultFound:
@@ -29,7 +36,16 @@ class Configuration(object):
 
             session.add(configuration)
             session.add(defaultgroup)
+            session.flush()
 
+            defaultuser = DBUser(
+                created = now,
+                modified = now,
+                name = 'administrator',
+                group_id = defaultgroup.id
+                )
+
+            session.add(defaultuser)
             session.commit()
 
         self.configuration = configuration
@@ -43,5 +59,6 @@ class Configuration(object):
         
         configuration.vipallocate = str(network)
         return vipnetwork
+
 
 configuration = Configuration()
