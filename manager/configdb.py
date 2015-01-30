@@ -186,12 +186,13 @@ class DBDatastore(Base):
     id = Column(Integer, primary_key=True)
     created = Column(DateTime, nullable=False)
     modified = Column(DateTime, nullable=False)
-    name = Column(String)
+    name = Column(String, unique = True)
     dtype = Column(Integer)
     source_path = Column(String) # path on the host
     container_path = Column(String, nullable = False) # path within the container
     backing_volume = Column(String) # backing volume if relevant
     application_id = Column(Integer, ForeignKey('application.cluster_id'))
+    size = Column(Integer)
 
     def __repr__(self):
         return """

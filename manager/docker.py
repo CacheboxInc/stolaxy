@@ -2,31 +2,26 @@
 
 import subprocess
 
+def docker_cmd(host, instance, cmd):
+    print (cmd, 'on docker instance', host, instance)
+
+    cmd = (
+        "ssh",
+        host,
+        "docker",
+        cmd,
+        instance
+        )
+
+    cmdp = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+    out, err = cmdp.communicate()
+    
+    return (cmdp.returncode, out, err)
+
 def cleanup_instance(host, instance):
     print ('cleaning up docker instance', host, instance)
 
-    cmd = (
-        "ssh",
-        host,
-        "docker",
-        "stop",
-        instance
-        )
+    ret, out, err = docker_cmd(host, instance, 'stop')
+    ret, out, err = docker_cmd(host, instance, 'rm')
 
-    stop = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    out, err = stop.communicate()
-    
-    # ignore the return value of stop
-
-    cmd = (
-        "ssh",
-        host,
-        "docker",
-        "rm",
-        instance
-        )
-
-    cleanup = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-    out, err = cleanup.communicate()
-
-    return cleanup.returncode
+    return ret

@@ -23,8 +23,7 @@ _local = threading.local()
 class Hadoop(Application):
     atype = configuration.application_types.get('HADOOP')
 
-    @classmethod
-    def create1(cls, user, name = None):
+    def create1(self, user, name = None):
         _local.dockerinstances = []
         hosts = Host.listing()
         if hosts.count() == 0:
@@ -91,7 +90,8 @@ class Hadoop(Application):
             created = now,
             modified = now,
             owner = owner.id,
-            atype = Hadoop.atype
+            atype = Hadoop.atype,
+            astate = self.application_states.get('POWERED_ON')
         )
         
         session.add(application)
@@ -116,8 +116,7 @@ class Hadoop(Application):
             "namenode /bin/bash"
             ))
     
-        print ('launching namenode')    
-        print (namenode_launch_cmd)
+        #print (namenode_launch_cmd)
     
         nn = subprocess.Popen(
             (
@@ -146,7 +145,8 @@ class Hadoop(Application):
             vipaddress = namenode_vipaddress,
             pipaddress = config['namenode']['namenode_physical_host'],
             application_id = application.cluster_id,
-            docker_id = docker_id
+            docker_id = docker_id,
+            vstate = self.application_states.get('POWERED_ON')
             )
 
         session.add(vnode)
@@ -172,8 +172,8 @@ class Hadoop(Application):
                     "datanode /bin/bash"
                     ))
 
-            print ('launching datanode')
-            print(datanode_launch_cmd)
+            #print(datanode_launch_cmd)
+
             dn = subprocess.Popen(
                 (
                     "ssh",
@@ -201,19 +201,21 @@ class Hadoop(Application):
                 vipaddress = datanode_vipaddress,
                 pipaddress = datanode['datanode_physical_host'],
                 application_id = application.cluster_id,
-                docker_id = docker_id
+                docker_id = docker_id,
+                vstate = self.application_states.get('POWERED_ON')
                 )
 
             session.add(vnode)
 
         return
 
-    @classmethod
-    def create(cls, user, name = None):
+    def create(self, **args):
+        user = args.get('user')
+        name = args.get('name')
         try:
-            ret = Hadoop.create1(user, name)
+            ret = self.create1(user, name)
         except:
-            traceback.print_exc()
+            #traceback.print_exc()
             session.rollback()
             for host, instance in _local.dockerinstances:
                 docker.cleanup_instance(host, instance)
@@ -222,16 +224,18 @@ class Hadoop(Application):
             session.commit()
             return ret
 
-    @classmethod
-    def get(cls, **kwargs):
-        application_id = kwargs.get('application_id')
+    def get(self, **args):
+        application_id = args.get('application_id')
         query = session.query(DBApplication)
         return query.filter(DBApplication.cluster_id == application_id).one()
 
-    @classmethod
-    def delete(cls, application_id):
-        app = Hadoop.get(application_id = application_id)
-        assert app.atype == Hadoop.atype
+    def delete(self, **args):
+        application_id = args.get('application_id')
+        if application_id == None:
+            usage()
+
+        app = self.get(application_id = application_id)
+        assert app.atype == self.atype
 
         for node in app.nodes:
             docker.cleanup_instance(node.pipaddress, node.docker_id)
@@ -240,90 +244,179 @@ class Hadoop(Application):
         session.delete(app)
         session.commit()
 
-    @classmethod
-    def listing(cls):
+    def list(self, **args):
         query = session.query(DBApplication)
-        return query.filter(DBApplication.atype == Hadoop.atype)
+        applications = query.filter(DBApplication.atype == self.atype)
+
+        if args.get('op') != 'list':
+            return applications
+            
+        # user has requested this listing, pretty print
+
+        if applications.count() > 0:
+            print ("{:<32s}{:<16s}{:<16s}{:<16s}{:<8s}{:<32s}".format(
+                    "id", "name", "owner", "state", "scale", "created")
+                   )
+        for app in applications:
+            owner = User.get_by_id(app.owner)
+            nhosts = len(set([node.pipaddress for node in app.nodes]))
+            astate = self.application_states_print.get(app.astate)
+            print ("{:<32s}{:<16s}{:<16s}{:<16s}{:<8d}{:<32s}".format(
+                    app.cluster_id, app.name, owner.name, astate, nhosts, str(app.created))
+                   )
+
+    def stop(self, **args):
+        application_id = args.get('application_id')
+        if application_id is None:
+            usage()
+
+        application = self.get(**args)
+
+        for vnode in application.nodes:
+            ret, out, err = docker.docker_cmd(vnode.pipaddress, vnode.docker_id, 'stop')
+            if ret != 0:
+                print("WARNING: could not stop component %s on %s." % (
+                        vnode.docker_id, vnode.pipaddress)
+                      )
+                continue
+            vnode.vstate = self.application_states.get('POWERED_OFF')
+            session.add(vnode)
+        
+        application.astate = self.application_states.get('POWERED_OFF')
+        session.add(application)
+
+        session.commit()
+        return
+
+
+    def start(self, **args):
+        application_id = args.get('application_id')
+        if application_id is None:
+            usage()
+
+        application = self.get(**args)
+
+        for vnode in application.nodes:
+            ret, out, err = docker.docker_cmd(vnode.pipaddress, vnode.docker_id, 'start')
+            if ret != 0:
+                print("WARNING: could not start component %s on %s." % (
+                        vnode.docker_id, vnode.pipaddress)
+                      )
+                continue
+            vnode.vstate = self.application_states.get('POWERED_ON')
+            session.add(vnode)
+        
+        application.astate = self.application_states.get('POWERED_ON')
+        session.add(application)
+
+        session.commit()
+        return
+
+
+    def pause(self, **args):
+        application_id = args.get('application_id')
+        if application_id is None:
+            usage()
+
+        application = self.get(**args)
+
+        for vnode in application.nodes:
+            ret, out, err = docker.docker_cmd(vnode.pipaddress, vnode.docker_id, 'pause')
+            if ret != 0:
+                print("WARNING: could not pause component %s on %s." % (
+                        vnode.docker_id, vnode.pipaddress)
+                      )
+                continue
+            vnode.vstate = self.application_states.get('PAUSED')
+            session.add(vnode)
+        
+        application.astate = self.application_states.get('PAUSED')
+        session.add(application)
+
+        session.commit()
+        return
+
+    def unpause(self, **args):
+        application_id = args.get('application_id')
+        if application_id is None:
+            usage()
+
+        application = self.get(**args)
+
+        for vnode in application.nodes:
+            ret, out, err = docker.docker_cmd(vnode.pipaddress, vnode.docker_id, 'unpause')
+            if ret != 0:
+                print("WARNING: could not unpause component %s on %s." % (
+                        vnode.docker_id, vnode.pipaddress)
+                      )
+                continue
+            vnode.vstate = self.application_states.get('POWERED_ON')
+            session.add(vnode)
+        
+        application.astate = self.application_states.get('POWERED_ON')
+        session.add(application)
+
+        session.commit()
+        return
+
+hadoop = Hadoop()
 
 def usage():
     print ("usage: hadoop.py --create --name=cluster name")
     print ("usage: hadoop.py --delete --application=application_id")
+    print ("usage: hadoop.py --start --application=application_id")
+    print ("usage: hadoop.py --stop --application=application_id")
+    print ("usage: hadoop.py --pause --application=application_id")
+    print ("usage: hadoop.py --resume --application=application_id")
+    print ("usage: hadoop.py --snapshot --application=application_id")
+    print ("usage: hadoop.py --backup --application=application_id")
     print ("usage: hadoop.py --list")
+    
     sys.exit(1)
-
-application = Hadoop()
 
 def main():
     ops = []
-    create = False
-    delete = False
-    listing = False
     name = None
     application = None
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "", 
-                                   ["create",
-                                    "delete",
-                                    "help",
-                                    "list",
-                                    "name=",
+                                   hadoop.application_ops + 
+                                   ["name=",
                                     "application="
                                     ])
-
+        
     except (getopt.GetoptError, err):
         print (str(err))
         usage()
         sys.exit(2)
+
+    args = {}
     for o, a in opts:
-        if o in ("--create"):
-            ops.append(a)
-            create = True
-        elif o in ("--delete"):
-            ops.append(a)
-            delete = True
-        elif o in ("--list"):
-            ops.append(a)
-            listing = True
+        if o.strip('--') in hadoop.application_ops:
+            ops.append(o.strip('--'))
+            args['op'] = o.strip('--')
         elif o in ("--name"):
             name = a
+            args['name'] = a
+            args['user'] = 'administrator'
         elif o in ("--application"):
             application = a
+            args['application_id'] = a
         elif o in ("--help"):
             usage()
 
-    if len(ops) > 1:
+    if len(ops) > 1 or len(ops) == 0:
         usage()
     
-    if create:
-        if not name:
-            usage()
-
-        # at the moment we hardcode the user to be the cluster
-        # administrator.
-
-        Hadoop.create('administrator', name)
-
-    elif delete:
-        if not application:
-            usage()
-
-        Hadoop.delete(application)
-
-    elif listing:
-        # make sure this is the last clause we handle in the if switch
-        applications = Hadoop.listing()
-        if applications.count() > 0:
-            print ("{:<32s}{:<16s}{:<16s}{:8s}{:<32s}".format("id", "name", "owner", "scale", "created"))
-        for app in applications:
-            owner = User.get_by_id(app.owner)
-            nhosts = len(set([node.pipaddress for node in app.nodes]))
-            
-            print ("{:<32s}{:<16s}{:<16s}{:<8d}{:<32s}".format(
-                    app.cluster_id, app.name, owner.name, nhosts, str(app.created))
-                   )
-    else:
-        usage()
+    method = getattr(hadoop, args.get('op'))
+    method(**args)
+    return
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except SystemExit:
+        pass
+    except:
+        print(sys.exc_info()[1])
