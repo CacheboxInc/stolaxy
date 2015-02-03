@@ -193,6 +193,7 @@ class DBDatastore(Base):
     backing_volume = Column(String) # backing volume if relevant
     application_id = Column(Integer, ForeignKey('application.cluster_id'))
     size = Column(Integer)
+    tier = Column(Integer)
 
     def __repr__(self):
         return """
