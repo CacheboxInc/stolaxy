@@ -7,6 +7,8 @@ volumes.
 import subprocess
 import sys
 
+sys.path.append('../../config')
+
 from config import *
 
 class Discover(object):

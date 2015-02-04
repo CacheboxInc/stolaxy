@@ -9,6 +9,7 @@ def dcmd(cmd, hosts, undo = None):
     relevant hosts.
     """
 
+    cmd = ' '.join([str(x) for x in cmd])
     success = []
     try:
         for host in hosts:
@@ -18,9 +19,12 @@ def dcmd(cmd, hosts, undo = None):
                 cmd,
                 ]
 
-            _cmd = subprocess.Popen(cmds, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
+            print('executing %s' % _cmds)
+            _cmd = subprocess.Popen(_cmds, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
             out, err = _cmd.communicate()
+            print(out, err)
             if _cmd.returncode != 0:
+                print(out, err)
                 raise Exception('error')
             
             success.append(host)

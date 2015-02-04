@@ -8,10 +8,13 @@ import sys
 
 from configdb import *
 from dcmd import *
+from host import *
 from util import *
 
 DEFAULT_DATASTORE_SIZE = 100 << 30 # 100 GB
 
+sys.path.append('../config')
+from config import *
 
 class Datastore(object):
     datastore_types = {
@@ -67,14 +70,10 @@ class Datastore(object):
         if tier not in ('flash', 'hdd', 'hybrid'):
             usage()
 
-        tier = self.datastore_tiers.get(tier)
-
         source_path = kwargs.get('source_path', None)
-#        assert(datastore_type not in ('FILESYSTEM', ) or source_path is not None,
-#                "FILESYSTEM datastores require a valid source_path")
-
         container_path = kwargs.get('container_path', '/data')
         volname = uuid.uuid4().hex[:32]
+        size = usize2int(size)
 
         if tier == 'flash':
             vgroup = STOLAXY_FLASH_TIER_VOLUME_GROUP
@@ -83,7 +82,7 @@ class Datastore(object):
         elif tier == 'hybrid':
             assert 0
         else:
-            assert 0
+            assert 0, "unsupported datastore tier: %s" % tier
 
         backing_volume = '/dev/%s/%s' % (vgroup, volname)
 
@@ -93,6 +92,7 @@ class Datastore(object):
             raise
 
         state = self.datastore_states.get('creating')
+        tier = self.datastore_tiers.get(tier)
 
         datastore = DBDatastore(
             application_id = application_id,
@@ -118,8 +118,8 @@ class Datastore(object):
             "lvcreate",
             "-n",
             volname,
-            "-l",
-            size,
+            "-L",
+            '%sb' % size,
             vgroup
             )
 
@@ -168,16 +168,17 @@ class Datastore(object):
         # user has requested this listing, pretty print
 
         if len(datastores) > 0:
-            print ("{:<8s}{:<16s}{:<16s}{:<16s}{:<16s}{:<16s}{:<16s}{:>16s}".format(
-                    "id", "name", "type", "tier", "source_path", "container_path", "backing_volume", "size")
+            print ("{:<8s}{:<16s}{:<16s}{:<8s}{:<8s}{:>8s}{:<16s}{:<16s}{:<16s}".format(
+                    "id", "name", "type", "tier", "state", "size", "source_path", "container_path", "backing_volume")
                    )
         for ds in datastores:
             dtype = self.datastore_types_print.get(ds.dtype)
             tier = self.datastore_tiers_print.get(ds.tier)
+            state = self.datastore_states_print.get(ds.state)
 
-            print ("{:<8d}{:<16s}{:<16s}{:<16s}{:<16s}{:<16s}{:<16s}{:>16s}".format(
-                    ds.id, ds.name, dtype, tier, str(ds.source_path), str(ds.container_path),
-                    str(ds.backing_volume), getusize(ds.size))
+            print ("{:<8d}{:<16s}{:<16s}{:<8s}{:<8s}{:>8s}{:<16s}{:<16s}{:<16s}".format(
+                    ds.id, ds.name, dtype, tier, state, getusize(ds.size), str(ds.source_path), str(ds.container_path),
+                    str(ds.backing_volume))
                    )
 
 def usage():
@@ -197,14 +198,14 @@ def main():
                                     "update",
                                     "list",
                                     "size=",
+				    "help",
                                     "name=",
                                     "type=",
                                     "datastore=",
                                     "tier=",
                                     ])
         
-    except (getopt.GetoptError, err):
-        print (str(err))
+    except (getopt.GetoptError):
         usage()
         sys.exit(2)
 
