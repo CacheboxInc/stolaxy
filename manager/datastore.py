@@ -2,6 +2,7 @@
 
 import datetime
 import getopt
+import uuid
 import sqlalchemy
 import sys
 
@@ -31,7 +32,15 @@ class Datastore(object):
 
     datastore_tiers_print = {v: k for k, v in datastore_tiers.items()}
 
-    
+    datastore_states = {
+        'creating':0,
+        'created':1,
+        'updating':2,
+        'deleting':3
+        }
+
+    datastore_states_print = {v: k for k, v in datastore_states.items()}
+
     def get(self, **args):
         id = args.get('datastore_id')
         query = session.query(DBDatastore)
@@ -65,7 +74,25 @@ class Datastore(object):
 #                "FILESYSTEM datastores require a valid source_path")
 
         container_path = kwargs.get('container_path', '/data')
-        backing_volume = kwargs.get('backing_volume')
+        volname = uuid.uuid4().hex[:32]
+
+        if tier == 'flash':
+            vgroup = STOLAXY_FLASH_TIER_VOLUME_GROUP
+        elif tier == 'hdd':
+            vgroup = STOLAXY_HDD_TIER_VOLUME_GROUP
+        elif tier == 'hybrid':
+            assert 0
+        else:
+            assert 0
+
+        backing_volume = '/dev/%s/%s' % (vgroup, volname)
+
+        hosts = Host.listing()
+        if hosts.count() == 0:
+            print ('not enough physical hosts to launch application!')
+            raise
+
+        state = self.datastore_states.get('creating')
 
         datastore = DBDatastore(
             application_id = application_id,
@@ -77,32 +104,34 @@ class Datastore(object):
             source_path = source_path,
             tier = tier,
             container_path = container_path,
-            backing_volume = backing_volume
+            backing_volume = backing_volume,
+            state = state
             )
 
         session.add(datastore)
         session.commit()
 
-        if tier == 'flash':
-            vgroup = STOLAXY_FLASH_TIER_VOLUME_GROUP
-        elif tier == 'hdd':
-            vgroup = STOLAXY_HDD_TIER_VOLUME_GROUP
-        elif tier == 'hybrid':
-            assert 0
-        else:
-            assert 0
-
-        # point to ponder - do we create the volume now, or defer it. there are several options here.
+        # point to ponder - do we create the volume now, or defer it. there are 
+        # several options here.
 
         lvcmd = (
             "lvcreate",
             "-n",
-            name,
+            volname,
             "-l",
             size,
             vgroup
             )
 
+        hosts = [h.ipaddress for h in hosts]
+        if dcmd(lvcmd, hosts) == False:
+            raise Exception("lvcreate failed")
+        
+        # mark the datastore as created only after all storage operations have successfully
+        # completed.
+
+        datastore.state = self.datastore_states.get('created')
+        session.commit()
         return datastore
 
     def delete(self, **args):
@@ -111,6 +140,21 @@ class Datastore(object):
             usage()
 
         datastore = self.get(**args)
+
+        datastore.state = self.datastore_states.get('deleting')
+        session.commit()
+
+        hosts = Host.listing()
+        hosts = [h.ipaddress for h in hosts]
+        lvcmd = (
+            "lvremove",
+            "-f",
+            datastore.backing_volume,
+            )
+
+        if dcmd(lvcmd, hosts) == False:
+            raise Exception("lvremove failed")
+
         session.delete(datastore)
         session.commit()
     

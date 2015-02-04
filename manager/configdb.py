@@ -194,6 +194,7 @@ class DBDatastore(Base):
     application_id = Column(Integer, ForeignKey('application.cluster_id'))
     size = Column(Integer)
     tier = Column(Integer)
+    state = Column(Integer)
 
     def __repr__(self):
         return """
