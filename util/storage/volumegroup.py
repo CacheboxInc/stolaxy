@@ -1,5 +1,8 @@
 import os
 import subprocess
+import sys
+
+sys.path.append('../../config')
 
 from config import *
 from discover import *

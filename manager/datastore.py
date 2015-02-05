@@ -2,14 +2,19 @@
 
 import datetime
 import getopt
+import uuid
 import sqlalchemy
 import sys
 
 from configdb import *
+from dcmd import *
+from host import *
 from util import *
 
 DEFAULT_DATASTORE_SIZE = 100 << 30 # 100 GB
 
+sys.path.append('../config')
+from config import *
 
 class Datastore(object):
     datastore_types = {
@@ -21,6 +26,23 @@ class Datastore(object):
         }
 
     datastore_types_print = {v: k for k, v in datastore_types.items()}
+
+    datastore_tiers = {
+        'hdd':0,
+        'flash':1,
+        'hybrid':2
+        }
+
+    datastore_tiers_print = {v: k for k, v in datastore_tiers.items()}
+
+    datastore_states = {
+        'creating':0,
+        'created':1,
+        'updating':2,
+        'deleting':3
+        }
+
+    datastore_states_print = {v: k for k, v in datastore_states.items()}
 
     def get(self, **args):
         id = args.get('datastore_id')
@@ -44,13 +66,33 @@ class Datastore(object):
         size = kwargs.get('size', DEFAULT_DATASTORE_SIZE)
         datastore_type = kwargs.get('dtype', 'FILESYSTEM')
         dtype = self.datastore_types.get(datastore_type)
+        tier = kwargs.get('tier', 'hdd')
+        if tier not in ('flash', 'hdd', 'hybrid'):
+            usage()
 
         source_path = kwargs.get('source_path', None)
-#        assert(datastore_type not in ('FILESYSTEM', ) or source_path is not None,
-#                "FILESYSTEM datastores require a valid source_path")
-
         container_path = kwargs.get('container_path', '/data')
-        backing_volume = kwargs.get('backing_volume')
+        volname = uuid.uuid4().hex[:32]
+        size = usize2int(size)
+
+        if tier == 'flash':
+            vgroup = STOLAXY_FLASH_TIER_VOLUME_GROUP
+        elif tier == 'hdd':
+            vgroup = STOLAXY_HDD_TIER_VOLUME_GROUP
+        elif tier == 'hybrid':
+            assert 0
+        else:
+            assert 0, "unsupported datastore tier: %s" % tier
+
+        backing_volume = '/dev/%s/%s' % (vgroup, volname)
+
+        hosts = Host.listing()
+        if hosts.count() == 0:
+            print ('not enough physical hosts to launch application!')
+            raise
+
+        state = self.datastore_states.get('creating')
+        tier = self.datastore_tiers.get(tier)
 
         datastore = DBDatastore(
             application_id = application_id,
@@ -60,13 +102,36 @@ class Datastore(object):
             dtype = dtype,
             size = size,
             source_path = source_path,
+            tier = tier,
             container_path = container_path,
-            backing_volume = backing_volume
+            backing_volume = backing_volume,
+            state = state
             )
 
         session.add(datastore)
         session.commit()
 
+        # point to ponder - do we create the volume now, or defer it. there are 
+        # several options here.
+
+        lvcmd = (
+            "lvcreate",
+            "-n",
+            volname,
+            "-L",
+            '%sb' % size,
+            vgroup
+            )
+
+        hosts = [h.ipaddress for h in hosts]
+        if dcmd(lvcmd, hosts) == False:
+            raise Exception("lvcreate failed")
+        
+        # mark the datastore as created only after all storage operations have successfully
+        # completed.
+
+        datastore.state = self.datastore_states.get('created')
+        session.commit()
         return datastore
 
     def delete(self, **args):
@@ -75,6 +140,21 @@ class Datastore(object):
             usage()
 
         datastore = self.get(**args)
+
+        datastore.state = self.datastore_states.get('deleting')
+        session.commit()
+
+        hosts = Host.listing()
+        hosts = [h.ipaddress for h in hosts]
+        lvcmd = (
+            "lvremove",
+            "-f",
+            datastore.backing_volume,
+            )
+
+        if dcmd(lvcmd, hosts) == False:
+            raise Exception("lvremove failed")
+
         session.delete(datastore)
         session.commit()
     
@@ -88,18 +168,21 @@ class Datastore(object):
         # user has requested this listing, pretty print
 
         if len(datastores) > 0:
-            print ("{:<8s}{:<16s}{:<16s}{:<16s}{:<16s}{:<16s}{:>16s}".format(
-                    "id", "name", "type", "source_path", "container_path", "backing_volume", "size")
+            print ("{:<8s}{:<16s}{:<16s}{:<8s}{:<8s}{:>8s}{:<16s}{:<16s}{:<16s}".format(
+                    "id", "name", "type", "tier", "state", "size", "source_path", "container_path", "backing_volume")
                    )
         for ds in datastores:
             dtype = self.datastore_types_print.get(ds.dtype)
-            print ("{:<8d}{:<16s}{:<16s}{:<16s}{:<16s}{:<16s}{:>16s}".format(
-                    ds.id, ds.name, dtype, str(ds.source_path), str(ds.container_path),
-                    str(ds.backing_volume), getusize(ds.size))
+            tier = self.datastore_tiers_print.get(ds.tier)
+            state = self.datastore_states_print.get(ds.state)
+
+            print ("{:<8d}{:<16s}{:<16s}{:<8s}{:<8s}{:>8s}{:<16s}{:<16s}{:<16s}".format(
+                    ds.id, ds.name, dtype, tier, state, getusize(ds.size), str(ds.source_path), str(ds.container_path),
+                    str(ds.backing_volume))
                    )
 
 def usage():
-    print("usage: datastore.py --create --name=datastore name --size=datastore_size")
+    print("usage: datastore.py --create --name=datastore name --size=datastore_size [--tier=flash|hdd|hybrid]")
     print("usage: datastore.py --update --datastore=datastore id --size=datastore_size")
     print("usage: datastore.py --delete --datastore=datastore id")
     print("usage: datastore.py --list")
@@ -115,13 +198,14 @@ def main():
                                     "update",
                                     "list",
                                     "size=",
+				    "help",
                                     "name=",
                                     "type=",
                                     "datastore=",
+                                    "tier=",
                                     ])
         
-    except (getopt.GetoptError, err):
-        print (str(err))
+    except (getopt.GetoptError):
         usage()
         sys.exit(2)
 
@@ -142,6 +226,8 @@ def main():
             args['dtype'] = a
         elif o in ("--help"):
             usage()
+        elif o in ("--tier"):
+            args['tier'] = a
 
     if len(ops) > 1 or len(ops) == 0:
         usage()
