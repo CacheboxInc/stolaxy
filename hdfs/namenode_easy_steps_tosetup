@@ -1,0 +1,36 @@
+Work is in progress, don't refer it ...
+
+
+1. Create a local user "hduser" on the system where you want to start the name node
+useradd -m -d /home/hduser hduser
+
+2. Setup hduser passwd
+passwd hduser
+
+3. Insatll java and probuf packeges
+sudo apt-get install java-6-openjdk python-protobuf 
+
+4.Switch in the hduser account and create a file with name .profile there. Add following entries in the file:  
+duser@ubuntu:~$ cat .profile 
+alias egrep='egrep --color=auto'
+alias fgrep='fgrep --color=auto'
+alias grep='grep --color=auto'
+alias l='ls -CF'
+alias la='ls -A'
+alias ll='ls -alF'
+alias ls='ls --color=auto'
+
+export JAVA_HOME="/usr/lib/jvm/java-6-openjdk-amd64/jre"
+export YARN_HOME=$HOME/yarn/hadoop-2.0.1-alpha
+export HADOOP_HOME=$HOME/yarn/hadoop-2.0.1-alpha
+export HADOOP_MAPRED_HOME=$HOME/yarn/hadoop-2.0.1-alpha
+export HADOOP_COMMON_HOME=$HOME/yarn/hadoop-2.0.1-alpha
+export HADOOP_HDFS_HOME=$HOME/yarn/hadoop-2.0.1-alpha
+export HADOOP_YARN_HOME=$HOME/yarn/hadoop-2.0.1-alpha
+export HADOOP_CONF_DIR=$HOME/yarn/hadoop-2.0.1-alpha/etc/hadoop
+export PATH=$PATH:$HOME/yarn/hadoop-2.0.1-alpha/bin:$HOME/yarn/hadoop-2.0.1-alpha/sbin/
+
+5. Download hadoop-2.0.1-alpha 
+
+
+

@@ -1,0 +1,14 @@
+# Example conf file 
+# Make sure name to IP mapping must be resolved either by dns or 
+# through /etc/hosts lookup
+namenode_name=namenode.cachebox.com
+datanode_name=datanode1.cachebox.com
+namenode_port=10000
+datanode_xferport=50010
+datanode_infoport=50011
+datanode_ipcport=50012
+# Absolute path of datanode_dir, where you want to store datanode
+# data files
+datanode_dir=/home/hduser/yarn/yarn_data/hdfs/datanode/
+#uuidgen command's output can be used as StorageID
+StorageID=d6fa1dae-81c2-4ff2-8cd7-e9dec90e3602
