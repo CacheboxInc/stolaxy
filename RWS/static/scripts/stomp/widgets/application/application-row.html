@@ -1,0 +1,19 @@
+<div>
+    <div id="{{app.cluster_id}}_app_row">
+        <div class="col-md-10 control-panel-col-name">
+            <span class="value fa pull-left">
+                 <a href="#">  {{app.name}}</a></span>
+        </div>
+        <div class="col-md-2 control-panel-col-opr">
+            <span class="pull-right">
+               {% if role %}
+                 <a href="#" name="{{app.cluster_id}}|{{app.name}}|{{opr}}" data-dojo-attach-event="onclick:onChange"><i class="fa fa-{{opr}}"></i></a>
+               {% else %}
+                  <a href="#" name="{{app.cluster_id}}|{{app.name}}|{{opr}}" data-dojo-attach-event="onclick:onChange"><i class="fa fa-{{opr}}"></i></a>
+                  <a href="#" data-dojo-attach-event="onclick:onChange" name="{{app.cluster_id}}|{{app.name}}|delete"><i class="fa fa-trash-o"></i></a>
+               {% endif %}
+             </span>
+        </div>
+       <div class="control-panel-row-seperator"></div>
+    </div>
+</div>

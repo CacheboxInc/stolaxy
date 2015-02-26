@@ -1,0 +1,57 @@
+﻿<!-- CONTENT -->
+{% if stats %}
+{% endif %}
+<div>
+    <div id="storage_opr" class="popup" style="text-align:initial;">
+        <h2>Create a Datastore </h2>
+        <div class="popup_body">
+            <div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Datastore name:
+                  </span>
+                  <input type="text" id="storage_name" style="width:305px;"></input>
+                </div>
+                <div class="col-md-12" style="margin-top:10px;">
+                  <span class="col-md-5">
+                    Add volumes to Datastore:
+                  </span>
+                  <div class="panel col-md-7" style="clear:none;">
+                      <div style="border-bottom: 1px solid #ddd;">
+                          <input type="checkbox" name="selectALL" data-dojo-attach-event="onclick:selectall"></input>
+                          <span>Select All</span>
+                      </div>
+                      <div style="height:100px; overflow-y:auto;" id="storage_volumes">
+                          {% for volume in volumes %}
+                              {% if not volume.datastore %}
+                               <div>
+                                  <div class="col-md-4" style="clear:none;padding:0px;">
+                                    <input type="checkbox" value="{{volume.id}}"></input>
+                                    <span>{{volume.name}}</span>
+                                  </div>
+                                  <div class="col-md-3" style="clear:none;padding:0px;">
+                                    <span>{{volume.server}}</span>
+                                  </div>
+                                  <div class="col-md-2" style="clear:none;padding:0px;">
+                                    <span>{{volume.type}}</span>
+                                  </div>
+                                  <div class="col-md-3" style="clear:none;padding:0px;">
+                                    <span>{{volume.size}}</span>
+                                  </div>
+                               </div>
+                             {% endif %}
+                          {% endfor %}
+                       </div>
+                   </div>
+                </div>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="addbtn" type="button" value="Add" data-dojo-attach-event="onclick:add">Create storage</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->

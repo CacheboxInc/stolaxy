@@ -1,0 +1,12 @@
+<tr id="{{volume.id}}_app_row">
+    <td><input type="checkbox" value="{{volume.id}}"></td>
+    <td><span name="{{volume.name}}" class="value fa" id="{{volume.id}}_volume_row_name">{{volume.name}}</span></td>
+    <td><span name="{{volume.type}}" class="value fa" id="{{volume.id}}_volume_row_type">{{volume.type}}</span></td>
+    <td><span class="value fa" id="{{volume.id}}_volume_row_server">{{volume.server}}</span></td>
+    <td><span class="value fa" id="{{volume.id}}_volume_row_size">{{volume.size}}</span></td>
+    {% if volume.datastore %}
+        <td><span class="value fa" id="{{volume.id}}_volume_row_datastore">{{volume.datastore}}</span></td>
+    {% else %}
+        <td><span class="value fa" id="{{volume.id}}_volume_row_datastore">&nbsp;</span></td>
+    {% endif %}
+</tr>

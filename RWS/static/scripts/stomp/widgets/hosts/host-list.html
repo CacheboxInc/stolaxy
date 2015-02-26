@@ -1,0 +1,25 @@
+{% if stats %}
+{% endif %}
+<div class="collapse" id="hosts_panel">
+    <div class="well control-panel">
+         <button class="btn btn-primary" type="button" data-dojo-attach-event="onclick:onCreate">
+             PHYSICAL HOSTS <span class="add-icon"><i class="fa fa-plus"></i></span>
+          </button>
+        <div class="panel control-panel-body">
+            <div class="panel-heading">
+                <h3 class="panel-title pull-left" style="width:100%;">HOST<span class="pull-right">opr</span></h3>
+                <div class="clearfix"></div>
+            </div>
+            <div class="panel-body control-panel-content" id="host_list">
+             </div>
+        </div>
+        <div class="control-panel-help">
+            <p class="fa fa-fw">
+               <i class="fa-question-circle fa-fw"></i> Manage physical hosts of your cluster. 
+               The panel enables the admin to add a new host machine, modify already existing 
+               host or delete the host. Click on the server name/ IP to view more details for
+               the selected server.
+            </p>
+        </div>
+    </div>
+</div>

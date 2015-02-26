@@ -1,0 +1,38 @@
+<div class="collapse" id="application_panel">
+    <div class="well control-panel">
+        {% if role %}
+          <button class="btn btn-primary" type="button">
+             APPLICATIONS
+          </button>
+        {% else %}
+          <button class="btn btn-primary" type="button" data-dojo-attach-event="onclick:onCreate">
+             APPLICATIONS <span class="add-icon"><i class="fa fa-plus"></i></span>
+          </button>
+        {% endif %}
+        <div class="panel control-panel-body">
+            <div class="panel-heading">
+                <h3 class="panel-title pull-left" style="width:100%;">NAME
+                    <span class="pull-right">opr</span>
+                </h3>
+                <div class="clearfix"></div>
+            </div>
+            <div class="panel-body control-panel-content" id="application_list">
+             </div>
+        </div>
+        <div class="control-panel-help">
+            <p class="fa fa-fw">
+               {% if role %}
+                   <i class="fa-question-circle fa-fw"></i> Manage applications created by your users. 
+                   The panel enables the admin to pause, resume any of the application. 
+                   host or delete the host. Click on the server name/ IP to view more details for
+                   the selected server.
+               {% else %}
+                   <i class="fa-question-circle fa-fw"></i> Manage your applications. The panel enables the 
+                   application admin to create a new application, start, stop, pause and resume any 
+                   of the application. User can even modify and delete an already existing application. Clicking on 
+                   the application will display the detailed view.
+               {% endif %}
+            </p>
+        </div>
+    </div>
+</div>

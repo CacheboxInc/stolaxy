@@ -1,0 +1,31 @@
+﻿<!-- CONTENT -->
+{% if stat %}
+{% endif %}
+<div>
+    <div id="host_opr" class="popup" style="text-align:initial;">
+        <h2>Create a Host </h2>
+        <div class="popup_body">
+            <div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Host Name:
+                  </span>
+                  <input type="text" id="host_name" class="col-md-6" style="width:262px;"></input>
+                </div>
+                <div class="col-md-12" style="margin-top:10px;">
+                  <span class="col-md-5">
+                    Host IP:
+                  </span>
+                  <input type="text" id="host_ip" class="col-md-6" style="width:262px;"></input>
+                </div>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="addbtn" type="button" value="Add" data-dojo-attach-event="onclick:add">Add host</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->

@@ -1,0 +1,32 @@
+﻿<!-- CONTENT -->
+{% if stats %}
+{% endif %}
+<div>
+    <div id="host_opr" class="popup" style="text-align:initial;">
+        <h2>Update</h2>
+        <div class="popup_body">
+            <div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Host name:
+                  </span>
+                  <input type="text" id="host_name" class="col-md-6" style="width:262px;" value="{{host.name}}"></input>
+                  <input type="hidden" id="host.ipaddress" value="{{host.ipaddress}}"></input>
+                </div>
+                <div class="col-md-12" style="margin-top:10px;">
+                  <span class="col-md-5">
+                    Host IP:
+                  </span>
+                  <input type="text" id="host_ip" class="col-md-6" style="width:262px;" value="{{host.ipaddress}}"></input>
+                </div>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="addbtn" type="button" value="update" data-dojo-attach-event="onclick:update">Update</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->
