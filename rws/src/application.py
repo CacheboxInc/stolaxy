@@ -19,9 +19,8 @@ import cherrypy
 
 from src.auth import authRequestHandler
 
-sys.path.append(os.getcwd() + "/../SPMC")
+sys.path.append(os.getcwd() + "/../spmc")
 from hadoop import hadoop
-from user import User
 
 class Application(object):
     exposed=True

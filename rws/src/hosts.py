@@ -20,7 +20,7 @@ import cherrypy
 from src.auth import authAdminRequestHandler
 from src.util import getusize
 
-sys.path.append(os.getcwd() + "/../SPMC")
+sys.path.append(os.getcwd() + "/../spmc")
 from host import Host
 
 class Hosts(object):
