@@ -1,0 +1,45 @@
+﻿<!-- CONTENT -->
+{% if stats %}
+{% endif %}
+<div>
+    <div id="group_opr" class="popup" style="text-align:initial;">
+        <h2>Update Group </h2>
+        <div class="popup_body">
+            <div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Group name:
+                  </span>
+                  <input type="text" id="group_name" class="col-md-6" style="width:262px;" value="{{group_name}}"></input>
+                  <input type="hidden" id="group_id" value="{{group_id}}"></input>
+                </div>
+                <div class="col-md-12" style="margin-top:10px;">
+                  <span class="col-md-5">
+                    Update group users:
+                  </span>
+                  <div class="col-md-5 panel" style="clear:none;">
+                      <div style="border-bottom: 1px solid #ddd;">
+                          <input type="checkbox" name="selectALL" data-dojo-attach-event="onclick:selectall"></input>
+                          <span>Select All</span>
+                      </div>
+                      <div style="height:60px; overflow-y:auto;" id="group_users">
+                          {% for user in users %}
+                              <div>
+                                <input type="checkbox" id="{{user.id}}" value={{user.id}}></input>
+                                <span>{{user.name}}</span>
+                              </div>
+                          {% endfor %}
+                       </div>
+                   </div>
+                </div>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="addbtn" type="button" value="update" data-dojo-attach-event="onclick:update">Update</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->

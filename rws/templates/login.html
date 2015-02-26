@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link href="./static//css/bootstrap/bootstrap.min.css" rel="stylesheet" />
+    <link href="./static//css/bootstrap/jasny-bootstrap.min.css" rel="stylesheet" />
+    <link href="./static/css/bootstrap/prettify.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/font.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/style.css" rel="stylesheet" type="text/css" />
+    <link rel="icon" type="image/png"  href="./static/img/cachebox-favicon.png" />
+
+  <body>
+      <div class="center">
+          <form method="post" action="{{login_action}}" enctype="multipart/form-data">
+              <div style="text-align:center">
+                  <a target="_blank" href="http://www.cachebox.com"><img style="width:250px; height:50px;padding-left:10px;" class="icon" src="./static/img/logo.png" alt="www.cachebox.com" /></a>
+              </div>
+              <div class="col-md-12">
+              <span class="col-md-6" style="font-weight:bold">Login:</span>
+                  <input type="text" class="col-md-6" name="login" style="margin-bottom:10px;"/>
+                  <span class="col-md-6" style="font-weight:bold">Password:</span>
+                  <input value="" type="password" class="col-md-6" name="password" style="margin-bottom:10px;" />
+              </div>
+              <div class="col-md-12" style="text-align:right">
+                  <button type="submit" class="btn btn-primary btn-sm active">Login</button>
+              </div>
+            </form>
+      </div>
+  </body>
+</html>

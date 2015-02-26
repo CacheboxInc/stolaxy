@@ -1,0 +1,90 @@
+{% if stats %}
+{% endif %}
+<div>
+    <div>
+        <div class="panel">
+            <div class="panel-heading">
+                <h3 class="panel-title pull-left">{{ host.name }} ( {{host.ipaddress}} )</h3>
+                <div class="clearfix"></div>
+            </div>
+            <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:250px;">
+                <div class="gauge-div">
+                    <span id="cpuHostGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 24% system utilization, 10% user utilization</span>
+                    </p> 
+                </div>
+                <div class="gauge-div">
+                    <span id="storageHostGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 120 TB utilized out of 130 TB</span>
+                    </p> 
+                </div>
+
+                <div class="gauge-div">
+                    <span id="networkHostGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 18 GB sent, 24 GB received</span>
+                    </p> 
+                </div>
+                <div class="gauge-div">
+                    <span id="memoryHostGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 62 GB utilized out of 64 GB</span>
+                    </p> 
+                </div>
+
+                <div id="summary" class="summary">
+                    <div class="panel-heading" style="padding-right:0px;">
+                       <h3 class="panel-title pull-left">UPTIME</h3>
+                       <div class="pull-left" style="text-align:left;width:100%;">
+                           <span class="value time">15 days</span>
+                           <span class="value time">2 hrs</span>
+                           <span class="value time last">43 minutes</span>
+                       </div>
+                        <div class="clearfix"></div>
+                    </div>
+                    <div class="panel-body" style="padding:0px;margin-top:10px;">
+                       <div id="containers" style="width:100%;height:120px;clear:both;"></div>
+                   </div>
+                </div>
+           </div>
+       </div>
+
+       <div class="panel">
+            <div class="panel-heading">
+                <h3 class="panel-title pull-left">Containers</h3>
+                <div class="clearfix"></div>
+            </div>
+            <div class="panel-body" style="padding-bottom:0px;height:220px;">
+                <div id="policy_distribution" class="policy-pie"></div>
+                    <table class="table" style="width:70%;float:right;">
+                        <thead>
+                          <tr>
+                            <td><span class="fa" style="font-weight:bold;">IPAddress</span></td>
+                            <td><span class="fa" style="font-weight:bold;">CPU utilization</span></td>
+                            <td><span class="fa" style="font-weight:bold;">Memory used</span></td>
+                            <td><span class="fa" style="font-weight:bold;">Network utilization</span></td>
+                            <td><span class="fa" style="font-weight:bold;">Storage Used</span></td>
+                            <td><span class="fa" style="font-weight:bold;">Application</span></td>
+                          </tr>
+                        </thead>
+                        <tbody>
+                            {% for node in virtualhosts %}
+                            <tr>
+                                <td><span class="value fa">node.pipaddress</span></td>
+                                <td><span class="value fa">node.cpu</span></td>
+                                <td><span class="value fa">node.memory</span></td>
+                                <td><span class="value fa">node.network</span></td>
+                                <td><span class="value fa">node.storage</span></td>
+                                <td><span class="value fa">node.application.name</span></td>
+                            </tr>
+                            {% endfor %}
+                       </tbody>
+                  </table>
+              </div>
+         </div>
+
+    </div>
+</div>
+

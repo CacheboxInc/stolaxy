@@ -1,0 +1,200 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link href="./static/css/bootstrap/bootstrap.min.css" rel="stylesheet" />
+    <link href="./static/css/bootstrap/jasny-bootstrap.min.css" rel="stylesheet" />
+    <link href="./static/css/bootstrap/prettify.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/font.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/Toaster.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/progressbar.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/tablesorter/theme.blue.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/jquery-ui.min.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/jquery-ui-slider-pips.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/style.css" rel="stylesheet" type="text/css" />
+    <link rel="icon" type="image/png"  href="./static/img/stomp-favicon.png" />
+    <!-- jQuery -->
+    <script src="./static/scripts/jquery/jquery.min.js"></script>
+    <script src="./static/scripts/jquery/jquery.lightbox_me.js"></script>
+    <script src="./static/scripts/jquery/jquery.tools.min.js"></script>
+    <script src="./static/scripts/jquery/jquery-ui.min.js"></script>
+    <script src="./static/scripts/jquery/jquery.ui.widget.js"></script>
+    <script src="./static/scripts/jquery/strft-time.min.js"></script>
+    <script src="./static/scripts/jquery/jquery-ui-slider-pips.js"></script>
+    <script src="./static/scripts/charts/gauge.min.js"></script>
+    <script src="./static/scripts/charts/d3.min.js" charset="utf-8"></script>
+    <script src="./static/scripts/charts/radialProgress.js" charset="utf-8"></script>
+    <script src="./static/scripts/charts/gauge.js" charset="utf-8"></script>
+    <!-- END: jQuery -->
+
+    <!-- DOJO -->
+    <script data-dojo-config="async: 0, dojoBlankHtmlUrl: '/blank.html', parseOnLoad:true,
+                packages: [
+                        { name: 'stomp', location: '../../stomp'}
+                    ]"
+            src="./static/scripts/dojo/dojo/dojo.js.uncompressed.js"></script>
+    <!-- END DOJO -->
+
+    <!-- Flot -->
+    <script src="./static/scripts/jquery/flot/jquery.flot.min.js"></script>
+    <script src="./static/scripts/jquery/flot/excanvas.min.js"></script>
+    <script src="./static/scripts/jquery/flot/jquery.flot.orderBars.js"></script>
+    <script src="./static/scripts/jquery/flot/jquery.flot.pie.js"></script>
+    <script src="./static/scripts/jquery/flot/jquery.flot.tooltip.js"></script>
+    <script src="./static/scripts/jquery/flot/jquery.flot.axislabels.js"></script>
+    <script src="./static/scripts/jquery/flot/jquery.flot.crosshair.min.js"></script>
+    <script src="./static/scripts/jquery/flot/jquery.flot.threshold.min.js"></script>
+    <script src="./static/scripts/jquery/flot/jquery.flot.time.min.js"></script>
+    <!-- END: Flot -->
+
+    <!-- Tablesorter -->
+    <script src="./static/scripts/jquery/tablesorter/jquery.tablesorter.js"></script>
+    <script src="./static/scripts/jquery/tablesorter/jquery.tablesorter.widgets.js"></script>
+    <!-- END: Tablesorter -->
+
+    <!-- Bootstrap -->
+    <script src="./static/scripts/bootstrap/bootstrap.min.js"></script>
+    <script src="./static/scripts/bootstrap/jasny-bootstrap.min.js"></script>
+    <script src="./static/scripts/prettify.js"></script>
+    <!-- END: Bootstrap -->
+
+    <script src="/static/scripts/stomp.js"></script>
+
+    <!-- Back button -->
+    <script type="text/javascript">
+        window.history.forward();
+        function noBack() { window.history.forward(); }
+    </script>
+    <!-- END: Back button -->
+    $if session.get('logged_in', False):
+        <script type="text/javascript">
+            var username = "{{session['username']}}";
+            var role = "{{session['role']}}";
+        </script>
+
+    <title>Stolaxy Management Console</title>
+</head>
+<body onload="noBack();" onpageshow="if (event.persisted) noBack();" onunload="">
+    <div id="dialog"></div>
+    <div id="loading" class="overlay">
+        <p style="font-size:20px;" id="loading_msg"></p>
+    </div>
+    <!-- BODY -->
+    <div class="wrapper">
+       <nav class="navbar navbar-inverse navbar-fixed-top">
+           <div class="container-fluid" style="padding-left:0px;">
+               <div class="navbar-header" style="width:18%;">
+                  <div class="logo">
+                      <a target="_blank" class="navbar-brand" href="http://www.cachebox.com" style="padding-top:5px;">
+                      <img style="width:185px; height:35px" class="icon" src="./static/img/logo.png" alt="www.stomp.com" />
+                      </a>
+                   </div>
+               </div>
+               <div class="collapse navbar-collapse">
+                <ul class="nav navbar-nav nav-menu" style="text-align:initial;">
+                    <li class="active">
+                        <a href="#" onclick="show_content('dashboard', this, event)"><i class="fa fa-dashboard fa-fw"></i>Dashboard</a>
+                    </li>
+	            {% if session.get('role', 'user') == 'admin' %}
+                        <li>
+                            <a href="#" onclick="show_content('applications', this, event)"><i class="fa fa-database fa-fw"></i>Applications</a>
+                        </li>
+                        <li>
+                            <a href="#" onclick="show_content('groups', this, event)"><i class="fa fa-group fa-fw"></i>Groups</a>
+                        </li>
+                        <li>
+                            <a href="#" onclick="show_content('users', this, event)"><i class="fa fa-user fa-fw"></i>Users</a>
+                        </li>
+                        <li>
+                            <a href="#" onclick="show_content('policy', this, event)"><i class="fa fa-gear fa-fw"></i>Policy</a>
+                        </li>
+                   {% endif %}
+                    <li>
+                        <a href="#" onclick="show_content('storages', this, event)"><i class="fa fa-hdd-o fa-fw"></i>Storage</a>
+                    </li>
+                    <li>
+                       <a href="#" onclick="show_content('reports', this, event)"><i class="fa fa-bar-chart-o fa-fw"></i>Reports</a>
+                    </li>
+                </ul>
+           {% if session.get('logged_in', False) %}
+               <ul class="nav navbar-nav navbar-right">
+                    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+                               <i class="fa fa-bell-o"></i><span class="fa superscript"> (5)</span><span class="caret"></span>
+                        </a>
+                        <ul class="dropdown-menu" role="menu" style="text-align:left;">
+                            <li><a href="#">Added host 10.10 ...</a></li>
+                            <li class="divider"></li>
+                            <li><a href="#">Started application ...</a></li>
+                            <li class="divider"></li>
+                            <li><a href="#">Started application ...</a></li>
+                            <li class="divider"></li>
+                            <li><a href="#">Started application ...</a></li>
+                            <li class="divider"></li>
+                            <li><a href="#">Started application ...</a></li>
+                        </ul>
+                    </li>
+		    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+                            <i class="fa fa-wrench"></i> 
+                             <span style="text-transform:capitalize;">{{session['username']}}</span> 
+                             <span class="caret"></span>
+                        </a>
+                        <ul class="dropdown-menu" role="menu" style="text-align:left;">
+                            <li><a href="#">Profile</a></li>
+                            <li class="divider"></li>
+                            <li><a href="#">Change Password</a></li>
+                            <li class="divider"></li>
+                            <li>
+                                 <a href="/logout">
+                                     <i class="fa fa-sign-out"></i>Logout
+                                 </a>
+                            </li>
+                        </ul>
+                    </li>
+               </ul>
+              {% endif %}
+              </div>
+           </div>
+       </nav>
+        <!-- SIDEBAR -->
+        <aside>
+            <div class="sidebar-nav" style="overflow:hidden;margin-top:30px;" id="control_panel">
+                <div style="display:none;">
+                    <a class="btn btn-primary" id="dashboard_panel_button" data-toggle="collapse" href="#hosts_panel" 
+                                                     aria-expanded="false" aria-controls="hosts_panel">
+                        hosts
+                    </a>
+                    <a class="btn btn-primary" id="applications_panel_button" data-toggle="collapse" href="#applications_panel" 
+                                                     aria-expanded="false" aria-controls="applications_panel">
+                        application
+                    </a>
+                    <a class="btn btn-primary" id="groups_panel_button" data-toggle="collapse" href="#groups_panel"
+                                                     aria-expanded="false" aria-controls="groups_panel">
+                        group
+                    </a>
+                    <a class="btn btn-primary" id="users_panel_button" data-toggle="collapse" href="#users_panel" 
+                                                     aria-expanded="false" aria-controls="users_panel">
+                        user
+                    </a>
+                    <a class="btn btn-primary" id="storages_panel_button" data-toggle="collapse" href="#storages_panel" 
+                                                     aria-expanded="false" aria-controls="storages_panel">
+                        storage
+                    </a>
+               </div>
+            </div>
+        </aside>
+        <!-- END: SIDEBAR -->
+        <!-- CONTENTS -->
+        <section class="content">
+            <div id="content" style="clear:both;">
+            </div>
+        </section>
+        <!-- END: CONTENTS -->
+    </div>
+    <!-- END: BODY -->
+</body>
+</html>

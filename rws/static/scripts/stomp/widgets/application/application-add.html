@@ -1,0 +1,54 @@
+﻿<!-- CONTENT -->
+<div>
+    <div id="add_application" class="popup" style="text-align:initial;">
+        <h2>Create an Application </h2>
+        <div class="popup_body">
+            <div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Choose an application type:
+                  </span>
+                <select id="select_application" class="col-md-6">
+                    {% for app in applications %}
+                    <option value={{app}}>{{app}}</option>
+                    {% endfor %}
+                </select>
+                </div>
+                <div class="clearfix" style="padding-bottom:10px;"></div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Application name:
+                  </span>
+                <input type="text" id="application_name" class="col-md-6" style="width:262px;"></input>
+                </div>
+                <div class="clearfix" style="padding-bottom:10px;"></div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Select Datastore:
+                  </span>
+                  <select class="col-md-6" data-dojo-attach-event="onclick:onDatastoreSelect" style="margin-bottom:5px;">
+                      {% for storage in storages %}
+                          <option value="{{storage.id}},{{storage.size}}">{{storage.name}} ( {{storage.tier}}, {{storage.size}})</option>
+                      {% endfor %}
+                   </select>
+                </div>
+                <div class="col-md-12">
+                  <span class="col-md-5">
+                    Storage size:
+                  </span>
+                  <div class="col-md-6" style="clear:none; padding:0px 5px 0px 5px;">
+                      <div class="slider"></div>
+                  </div>
+                <input type="hidden" id="storage_size" value="1 GB"></input>
+                </div>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="addbtn" type="button" value="Add" data-dojo-attach-event="onclick:add">Create application</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->

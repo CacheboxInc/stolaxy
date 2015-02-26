@@ -1,0 +1,33 @@
+<div class="collapse" id="storages_panel">
+    <div class="well control-panel">
+         {% if role %}
+         <button class="btn btn-primary" type="button" data-dojo-attach-event="onclick:onCreate">
+             DATASTORES <span class="add-icon"><i class="fa fa-plus"></i></span>
+          </button>
+         {% else %}
+         <button class="btn btn-primary" type="button">
+             DATASTORES
+          </button>
+         {% endif %}
+        <div class="panel control-panel-body">
+            <div class="panel-heading">
+                {% if role %}
+                    <h3 class="panel-title pull-left" style="width:100%;">DATASTORE<span class="pull-right">opr</span></h3>
+                {% else %}
+                    <h3 class="panel-title pull-left" style="width:100%;">DATASTORE</h3>
+                {% endif %}
+                <div class="clearfix"></div>
+            </div>
+            <div class="panel-body control-panel-content" id="datastore_list">
+             </div>
+        </div>
+        <div class="control-panel-help">
+            <p class="fa fa-fw">
+               <i class="fa-question-circle fa-fw"></i> Manage datastores for your cluster. 
+               The panel enables the admin to add a new datastore, modify already existing 
+               datastore or delete an already existing datastor. Click on the datastore to view 
+               more details.
+            </p>
+        </div>
+    </div>
+</div>

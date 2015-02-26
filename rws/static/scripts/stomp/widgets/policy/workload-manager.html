@@ -1,0 +1,64 @@
+{% if stats %}
+{% endif %}
+<div class="col-md-12">
+    <div class="panel">
+        <div class="panel-heading">
+            <h3 class="panel-title pull-left">Workload Management</h3>
+            <div class="clearfix"></div>
+        </div>
+        <div class="panel-body" style="padding-bottom:0px;height:220px;">
+            <div id="policy_distribution" class="policy-pie"></div>
+            <table class="table" style="width:70%;float:right;">
+                <thead>
+                    <tr>
+                        <td><span class="fa" style="font-weight:bold;">Queue</span></td>
+                        <td><span class="fa" style="font-weight:bold;">Running</span></td>
+                        <td><span class="fa" style="font-weight:bold;">Queued</span></td>
+                        <td><span class="fa" style="font-weight:bold;">Error</span></td>
+                        <td><span class="fa" style="font-weight:bold;">Completed</span></td>
+                        <td><span class="fa" style="font-weight:bold;">Avg. Duration</span></td>
+                        <td><span class="fa" style="font-weight:bold;">Est. delay</span></td>
+                   </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="value fa">Platinum</span></td>
+                        <td><span class="value fa">12</span></td>
+                        <td><span class="value fa">16</span></td>
+                        <td><span class="value fa">0</span></td>
+                        <td><span class="value fa">12</span></td>
+                        <td><span class="value fa">2 hrs</span></td>
+                        <td><span class="value fa">10 mins</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="value fa">Gold</span></td>
+                        <td><span class="value fa">32</span></td>
+                        <td><span class="value fa">6</span></td>
+                        <td><span class="value fa">0</span></td>
+                        <td><span class="value fa">482</span></td>
+                        <td><span class="value fa">8 hrs</span></td>
+                        <td><span class="value fa">2 hrs</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="value fa">Silver</span></td>
+                        <td><span class="value fa">23</span></td>
+                        <td><span class="value fa">10</span></td>
+                        <td><span class="value fa">0</span></td>
+                        <td><span class="value fa">82</span></td>
+                        <td><span class="value fa">4 hrs</span></td>
+                        <td><span class="value fa">8 hrs</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="value fa">Bronze</span></td>
+                        <td><span class="value fa">31</span></td>
+                        <td><span class="value fa">7</span></td>
+                        <td><span class="value fa">0</span></td>
+                        <td><span class="value fa">126</span></td>
+                        <td><span class="value fa">9 hrs</span></td>
+                        <td><span class="value fa">2 hrs</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

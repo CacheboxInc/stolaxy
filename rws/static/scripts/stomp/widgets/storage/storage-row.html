@@ -1,0 +1,17 @@
+<div>
+    <div id="{{storage.id}}_storage_row">
+        <div class="col-md-10 control-panel-col-name">
+            <span class="value fa pull-left"><a href="#">{{storage.name}} ({{storage.size}})</a></span>
+        </div>
+        <div class="col-md-2 control-panel-col-opr">
+            <span class="pull-right">
+                  {% if role %}
+                      <a href="#" data-dojo-attach-event="onclick:onChange"><i class="fa fa-edit"></i></a>  <a href="#" data-dojo-attach-event="onclick:onDelete"><i class="fa fa-trash-o"></i></a>
+                  {% else %}
+                      &nbsp;
+                  {% endif %}
+             </span>
+        </div>
+       <div class="control-panel-row-seperator"></div>
+    </div>
+</div>

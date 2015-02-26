@@ -1,0 +1,14 @@
+﻿<!-- CONTENT -->
+{% if stats %}
+{% endif %}
+<div>
+    <div id="host_opr" class="popup" style="text-align:initial;">
+        <h2 style="border:none;">Are you sure you want to remove {{host.name}} ({{host.ipaddress}}) ? </h2>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="delbtn" type="button" value="delete" data-dojo-attach-event="onclick:del">Remove</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->

@@ -1,0 +1,55 @@
+{% if stats %}
+{% endif %}
+<div>
+    <div class="col-md-12">
+        <div class="panel">
+            <div class="panel-heading">
+                <h3 class="panel-title pull-left">Cluster Stats</h3>
+                <div class="clearfix"></div>
+            </div>
+            <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:250px;">
+                <div class="gauge-div">
+                    <span id="cpuGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 54% system utilization, 90% user utilization</span>
+                    </p> 
+                </div>
+                <div class="gauge-div">
+                    <span id="storageGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 376 TB utilized out of 400 TB</span>
+                    </p> 
+                </div>
+
+                <div class="gauge-div">
+                    <span id="networkGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 28 GB sent, 89 GB received</span>
+                    </p> 
+                </div>
+                <div class="gauge-div">
+                    <span id="memoryGaugeContainer"></span>
+                    <p style="font-align:center;margin-top:10px">
+                        <span class="fa"> 149 GB utilized out of 288 GB</span>
+                    </p> 
+                </div>
+
+                <div id="summary" class="summary">
+                    <div class="panel-heading" style="padding-right:0px;">
+                       <h3 class="panel-title pull-left">UPTIME</h3>
+                       <div class="pull-left" style="text-align:left;width:100%;">
+                           <span class="value time">25 days</span>
+                           <span class="value time">12 hrs</span>
+                           <span class="value time last">43 minutes</span>
+                       </div>
+                        <div class="clearfix"></div>
+                    </div>
+                    <div class="panel-body" style="padding:0px;margin-top:10px;">
+                       <div id="application_distribution" style="width:100%;height:120px;clear:both;"></div>
+                   </div>
+                </div>
+           </div>
+       </div>
+    </div>
+</div>
+
