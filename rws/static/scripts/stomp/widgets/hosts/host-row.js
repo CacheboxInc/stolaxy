@@ -61,6 +61,8 @@ define("stomp/widgets/hosts/host-row", [
                showHost : function(evt) {
                    var widget = this;
                    var host = widget.host;
+                   host.ip_unique = host.ipaddress.split('.').join("");
+
                    var elem = dojo.byId(host.ipaddress + '_content');
                    $("#dashcontent").children().css("display", "none");
                    if (elem) {

@@ -39,6 +39,9 @@ class Hosts(object):
     def delete(self, ipaddress):
         Host.delete(ipaddress)
 
+    def update(self, name, old_ipaddress, new_ipaddress):
+        Host.update(name, old_ipaddress, new_ipaddress)
+
     @cherrypy.tools.json_in()
     @authAdminRequestHandler
     def POST(self, op):
@@ -53,6 +56,7 @@ class Hosts(object):
             self.delete(host_ip)
             msg = "Host %s successfully removed" % name,
         else:
+            self.update(name,old_ip,host_ip)
             msg = "Host %s successfully modified" % name,
 
         return {

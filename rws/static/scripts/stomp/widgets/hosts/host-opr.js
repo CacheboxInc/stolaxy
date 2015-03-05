@@ -34,7 +34,9 @@ define("stomp/widgets/hosts/host-opr", [
 
                add: function () {
                    var widget = this;
-
+                   if (!widget.validate()) {
+                       return false;
+                   }
                    var data = {
                        'host_name': dojo.byId("host_name").value,
                        'host_ip': dojo.byId("host_ip").value
@@ -67,6 +69,9 @@ define("stomp/widgets/hosts/host-opr", [
                },
                update: function() {
                    var widget = this;
+                   if (!widget.validate()) {
+                       return false;
+                   }
                    var host_old_ip = $("#host_old_ip").val();
                    var host_ip = $("#host_ip").val();
                    var host_name = $("#host_name").val();
@@ -108,7 +113,7 @@ define("stomp/widgets/hosts/host-opr", [
 
                    var data = {
                        'host_name': host.name,
-                       'host_ip': host.ip
+                       'host_ip': host.ipaddress
                    };
 
                    $('#host_opr').trigger('close');
@@ -126,7 +131,7 @@ define("stomp/widgets/hosts/host-opr", [
                    }).then(
                        function (response) {
                            util.stop_load();
-                           topic.publish("/stomp/host_delete", response, host.ip);
+                           topic.publish("/stomp/host_delete", response, host.ipaddress);
                        },
                        function (error) {
                            util.stop_load();
@@ -164,6 +169,30 @@ define("stomp/widgets/hosts/host-opr", [
                        centered: true,
                        destroyOnClose: true
                    });
+               },
+               validate: function(e) {
+                   var widget = this
+                   widget.cleanup();
+
+                   //Write custom validation here
+                   var h_name = dojo.byId("host_name").value;
+                   var h_ip = dojo.byId("host_ip").value;
+
+                   if ($.trim(h_name) == '') {
+                       $("#host_name").addClass('err-highlight-input');
+                       return false;
+                   } else if (h_ip == '') {
+                       $("#host_ip").addClass('err-highlight-input');
+                       return false;
+                   } else if (!util.is_valid_ip(h_ip)) {
+                       $("#host_ip").addClass('err-highlight-input');
+                       return false;
+                   }
+                   return true;
+               },
+               cleanup: function() {
+                   //Always clear the old css modifictions.
+                   $("#host_name, #host_ip").removeClass('err-highlight-input');
                }
        });
 });

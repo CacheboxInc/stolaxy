@@ -29,6 +29,7 @@ define("stomp/widgets/hosts/host-content", [
                templateString : template,
                plotContainerBar : function(app_stats) {
                     var widget = this;
+                    var host = widget.host;
                     widget.barOpts = graphUtils.getGraphOptions("bar");
                     widget.barOpts.yaxis.axisLabel = '<span class="fa" style="font-size:10px;"># Containers</span>';
                     widget.barOpts.series.bars.barWidth = 1;
@@ -40,7 +41,7 @@ define("stomp/widgets/hosts/host-content", [
                            [3, '<i class="fa fa-stop"></i>']
                     ];
 
-                    var plot = $.plot($("#containers"), app_stats, widget.barOpts);
+                    var plot = $.plot($("#containers" + "_" + host.ip_unique), app_stats, widget.barOpts);
                },
                updateStats: function(cpu, storage, network, memory) {
                     var widget = this;
@@ -52,7 +53,7 @@ define("stomp/widgets/hosts/host-content", [
                plotHostStats: function(cpu, storage, network, memory) {
                   var widget = this;
                   var gauges = [];
-			
+                  var host = widget.host;
                   function createGauge(name, label, min, max) {
 			var config = {
 					size: 150,
@@ -66,7 +67,7 @@ define("stomp/widgets/hosts/host-content", [
 			config.yellowZones = [{ from: config.min + range*0.75, to: config.min + range*0.9 }];
 			config.redZones = [{ from: config.min + range*0.9, to: config.max }];
 				
-			gauges[name] = new Gauge(name + "HostGaugeContainer", config);
+			gauges[name] = new Gauge(name +  "HostGaugeContainer" + "_" + host.ip_unique, config);
 			gauges[name].render();
                         widget.gauges = gauges;
 		}
@@ -84,6 +85,7 @@ define("stomp/widgets/hosts/host-content", [
                postCreate: function () {
                    var widget = this;
                    widget.host = this.host;
+
                    this.domNode.id = this.host.ipaddress + "_content";
                    widget.placeAt(this.node, this.pos);
                    widget.template = new dtl.Template(widget.templateString);

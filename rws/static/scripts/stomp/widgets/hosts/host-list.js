@@ -86,7 +86,7 @@ define("stomp/widgets/hosts/host-list", [
                    dojo.forEach(data.hosts, function (host, index) {
                        new rowHost({
                                     'host': host,
-                                    'node': host.old_ipaddress + "_app_row",
+                                    'node': host.old_ipaddress + "_host_row",
                                     'pos': 'replace'
                                   });
                    });

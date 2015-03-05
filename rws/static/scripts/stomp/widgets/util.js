@@ -53,6 +53,13 @@ define("stomp/widgets/util", function() {
                    return (size * (1 << 10)) + " KB"; 
                }
                return size * (1 << 20) + ' B';
+           },
+           is_valid_ip: function(data) { 
+               var reg = "(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)";
+               var str = "^" + reg + "\\." + reg + "\\." + reg + "\\." + reg + "$";
+               var pattern =  new RegExp(str);
+               return pattern.test(data);
            }
+
        };
 });
