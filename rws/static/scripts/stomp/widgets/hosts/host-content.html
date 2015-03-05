@@ -9,26 +9,26 @@
             </div>
             <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:250px;">
                 <div class="gauge-div">
-                    <span id="cpuHostGaugeContainer"></span>
+                    <span id="cpuHostGaugeContainer_{{host.ip_unique}}"></span>
                     <p style="font-align:center;margin-top:10px">
                         <span class="fa"> 24% system utilization, 10% user utilization</span>
                     </p> 
                 </div>
                 <div class="gauge-div">
-                    <span id="storageHostGaugeContainer"></span>
+                    <span id="storageHostGaugeContainer_{{host.ip_unique}}"></span>
                     <p style="font-align:center;margin-top:10px">
                         <span class="fa"> 120 TB utilized out of 130 TB</span>
                     </p> 
                 </div>
 
                 <div class="gauge-div">
-                    <span id="networkHostGaugeContainer"></span>
+                    <span id="networkHostGaugeContainer_{{host.ip_unique}}"></span>
                     <p style="font-align:center;margin-top:10px">
                         <span class="fa"> 18 GB sent, 24 GB received</span>
                     </p> 
                 </div>
                 <div class="gauge-div">
-                    <span id="memoryHostGaugeContainer"></span>
+                    <span id="memoryHostGaugeContainer_{{host.ip_unique}}"></span>
                     <p style="font-align:center;margin-top:10px">
                         <span class="fa"> 62 GB utilized out of 64 GB</span>
                     </p> 
@@ -45,7 +45,7 @@
                         <div class="clearfix"></div>
                     </div>
                     <div class="panel-body" style="padding:0px;margin-top:10px;">
-                       <div id="containers" style="width:100%;height:120px;clear:both;"></div>
+                       <div id="containers_{{host.ip_unique}}" style="width:100%;height:120px;clear:both;"></div>
                    </div>
                 </div>
            </div>

@@ -47,7 +47,22 @@ class Host(object):
         else:
             print ('successfully added host: %s' % ipaddress)
             return host
-        
+
+    @classmethod
+    def update(cls, name, old_ipaddress, new_ipaddress):
+        # Check if IP already exists
+        query = session.query(DBPhysicalHost)
+        if query.filter(DBPhysicalHost.ipaddress == old_ipaddress).count() == 0:
+            #Old IP address does not exist, create a new host here.
+            host = cls.create(name, new_ipaddress)
+        else:
+            #Update the existing one.
+            host = query.filter(DBPhysicalHost.ipaddress == old_ipaddress).one()
+            host.name = name
+            host.ipaddress = new_ipaddress
+        session.add(host)
+        session.flush()
+
     @classmethod
     def delete(cls, ipaddress):
         query = session.query(DBPhysicalHost)
