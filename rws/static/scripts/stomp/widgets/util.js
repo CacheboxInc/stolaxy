@@ -59,6 +59,16 @@ define("stomp/widgets/util", function() {
                var str = "^" + reg + "\\." + reg + "\\." + reg + "\\." + reg + "$";
                var pattern =  new RegExp(str);
                return pattern.test(data);
+           },
+           is_valid_email: function(data) {
+               var pattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+               return pattern.test(data);
+           },
+           is_valid_username: function(data) {
+               // Allow small characters only.
+               // Do not allow spaces.
+               var pattern = /^[a-z0-9]+$/;
+               return pattern.test(data);
            }
 
        };

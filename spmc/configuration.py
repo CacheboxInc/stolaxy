@@ -3,11 +3,15 @@ import datetime
 from configdb import *
 from netaddr import *
 from sqlalchemy.orm.exc import NoResultFound
+from util import *
 
 MAX_NETWORKS = 1 << 24
 MAX_NETWORKS_BYTEARRAY_LEN = MAX_NETWORKS >> 3
 
 VIRTUAL_IP_NETWORK_START = '10.0.0.0/24'
+
+ADMIN, USER = 'admin', 'user'
+roles = ((ADMIN, "Admininstrator"), (USER, "Regular-User"))
 
 class Configuration(object):
     def __init__(self):
@@ -38,10 +42,14 @@ class Configuration(object):
             session.add(defaultgroup)
             session.flush()
 
+            pwd = generate_password('admin123')
             defaultuser = DBUser(
                 created = now,
                 modified = now,
-                name = 'administrator',
+                username = 'administrator',
+                password = pwd,
+                email = 'admin@cachebox.com',
+                role = 'admin',
                 group_id = defaultgroup.id
                 )
 

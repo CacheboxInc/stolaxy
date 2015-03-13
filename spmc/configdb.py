@@ -3,7 +3,7 @@
 import os
 import sys
 
-from sqlalchemy import Binary, Column, ForeignKey, Integer, String, DateTime
+from sqlalchemy import Binary, Column, ForeignKey, Integer, String, DateTime, SmallInteger
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import backref
@@ -77,21 +77,39 @@ users %s
 class DBUser(Base):
     __tablename__ = 'user'
     id = Column(Integer, primary_key = True)
-    created = Column(DateTime, nullable=False)
-    modified = Column(DateTime, nullable=False)
-    name = Column(String, unique = True)
+    created = Column(DateTime, nullable = False)
+    modified = Column(DateTime, nullable = False)
+    username = Column(String, unique = True)
+    password = Column(String, nullable = False)
+    fullname = Column(String, nullable = True)
+    email = Column(String, unique = True)
     group_id = Column(Integer, ForeignKey('group.id'))
+    role = Column(String, nullable=False)
+    firstlogin = Column(DateTime, nullable=True)
+    lastlogin = Column(DateTime, nullable=True)
+    login_count = Column(Integer, default=0)
+    online = Column(SmallInteger, default=0)
 
     def to_dict(self):
-        query = session.query(DBGroup)
-        query.filter(DBGroup.id == self.group_id).one()
+        if self.group_id:
+            query = session.query(DBGroup)
+            group = query.filter(DBGroup.id == self.group_id).one()
+        else:
+            group = None
 
         return {
             'id': self.id,
             'created': str(self.created),
             'modified': str(self.modified),
-            'name': self.name,
-            'group': group.to_dict()
+            'username': self.username,
+            'group': group,
+            'role': self.role,
+            'email': self.email,
+            'fullname': self.fullname,
+            'firstlogin': str(self.firstlogin),
+            'lastlogin': str(self.lastlogin),
+            'online': self.online,
+            'login_count': self.login_count
         }
 
     def __repr__(self):
@@ -100,14 +118,28 @@ DBUser:
 id %s
 created %s
 modified %s
-name %s
-group_id %s
+username %s
+group %s
+role %s
+email %s
+fullname %s
+firstlogin %s
+lastlogin %s
+online %s
+login_count %s
 """ % (
             self.id,
             self.created,
             self.modified,
-            self.name,
-            self.group_id
+            self.username,
+            self.group_id,
+            self.role,
+            self.email,
+            self.fullname,
+            self.firstlogin,
+            self.lastlogin,
+            self.online,
+            self.login_count
             )
 
 class DBPhysicalHost(Base):

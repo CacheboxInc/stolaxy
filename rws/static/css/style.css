@@ -901,3 +901,14 @@ li.accelerated {
     border-color: #ff0000;
     border-width: 1px;
 }
+
+.err-login {
+    color: #ff0000;
+    padding: 10px 0;
+    float: right;
+}
+
+#user_listing th {
+    text-align: center;
+}
+

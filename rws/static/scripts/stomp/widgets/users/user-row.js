@@ -41,6 +41,7 @@ define("stomp/widgets/users/user-row", [
                    var widget = this;
                    var user = widget.user;
                    var user_group = user.group;
+                   var roles = JSON.parse(JSON.stringify(widget.roles));
 
                    xhr('/group/list', {
                        'handleAs': 'json',
@@ -53,7 +54,8 @@ define("stomp/widgets/users/user-row", [
                            new oprUser({'id': 'dialog',
                                          'groups': groups,
                                          'opr': 'modify',
-                                         'user': user
+                                         'user': user,
+                                         'roles': roles
                                         });
                            dojo.forEach(user_group, function(group, index) {
                                $("#" + group).attr("checked", true);

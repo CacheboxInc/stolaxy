@@ -99,7 +99,7 @@ function initialize() {
 
                     new appList({ 'node': 'control_panel', 'id': 'applications_panel', 'role': role});
                     new groupList({ 'node':'control_panel', 'id': 'groups_panel'});
-                    new userList({ 'node':'control_panel', 'id': 'users_panel'});
+                    new userList({ 'node':'control_panel', 'id': 'users_panel', 'roles': roles});
 
                     var cluster_stats = dc.create("div", {"class" : "row"}, "dashcontent");
                     new clusterStats({ 'node': cluster_stats, 'id': 'clusterstats'});

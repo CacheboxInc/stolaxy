@@ -13,7 +13,8 @@ define("stomp/widgets/users/user-list", [
     "stomp/widgets/msgbox",
     "stomp/widgets/util",
     "stomp/widgets/users/user-opr",
-    "stomp/widgets/users/user-row"
+    "stomp/widgets/users/user-row",
+    "stomp/widgets/users/user-content-row"
 ], function (
        declare,
        template,
@@ -29,7 +30,8 @@ define("stomp/widgets/users/user-list", [
        msgbox,
        util,
        oprUser,
-       rowUser
+       rowUser,
+       rowUserContent
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -40,7 +42,7 @@ define("stomp/widgets/users/user-list", [
                    topic.subscribe("/stomp/user_delete", lang.hitch(widget, 'userDelete'));
                    widget.placeAt(this.node);
                    widget.template = new dtl.Template(widget.templateString);
-                   
+                   var roles = JSON.parse(JSON.stringify(widget.roles));
                    xhr('/user/list', {
                        'handleAs': 'json',
                        'method': 'GET',
@@ -49,11 +51,17 @@ define("stomp/widgets/users/user-list", [
                    }).then(
                        function (response) {
                            dojo.forEach(response.users, function (user, index) {
-                              new rowUser({
+                               new rowUser({
                                            'user': user,
                                            'node': 'user_list',
-                                           'pos': 'last'
+                                           'pos': 'last',
+                                           'roles': roles
                                          });
+                               new rowUserContent({
+                                           'user': user,
+                                           'node': 'ulist_body',
+                                           'pos': 'last'
+                               });
                            });
                        },
                        function (error) {
@@ -61,7 +69,9 @@ define("stomp/widgets/users/user-list", [
                        });
                },
                onCreate : function () {
-                   var widget = this;
+                   var widget = this; 
+                   var roles = JSON.parse(JSON.stringify(widget.roles));
+
                    xhr('/group/list', {
                        'handleAs': 'json',
                        'method': 'GET',
@@ -72,7 +82,8 @@ define("stomp/widgets/users/user-list", [
                            var groups = response.groups;
                            new oprUser({'id': 'dialog',
                                          'groups': groups,
-                                         'opr': 'create'
+                                         'opr': 'create',
+                                         'roles': roles
                                         });
                        },
                        function (error) {
@@ -80,34 +91,52 @@ define("stomp/widgets/users/user-list", [
                        });
                },
                userCreate : function(data) {
-                   var title = '<h3>Succussfully created</h3>';
+                   if (!data.error)
+                       var title = '<h3>Succussfully created</h3>';
+                   else
+                       var title = '<h3>Error</h3>';
                    var body = '<p>' + data.msg + '</p>';
                    topic.publish("/stomp/info", title + body);
-                   dojo.forEach(data.users, function (user, index) {
-                          new rowUser({
+                   if (!data.error) {
+                       dojo.forEach(data.users, function (user, index) {
+                           new rowUser({
                                        'user': user,
                                        'node': 'user_list',
+                                       'pos': 'last',
+                                       'roles': data.roles
+                                     });
+                           new rowUserContent({
+                                       'user': user,
+                                       'node': 'ulist_body',
                                        'pos': 'last'
                                      });
-                   });
+                       });
+                   }
                },
                userChange : function(data) {
-                   var title = '<h3>Succussfully updated</h3>';
+                   if (!data.error)
+                       var title = '<h3>Succussfully updated</h3>';
+                   else
+                       var title = '<h3>Error</h3>';
                    var body = '<p>' + data.msg + '</p>';
                    topic.publish("/stomp/info", title + body);
-                   dojo.forEach(data.users, function (user, index) {
-                       new rowUser({
+                   if (!data.error) {
+                       dojo.forEach(data.users, function (user, index) {
+                           new rowUser({
                                     'user': user,
                                     'node': user.id + '_user_row',
-                                    'pos': 'replace'
+                                    'pos': 'replace',
+                                    'roles': data.roles
                                   });
-                   });
+                       });
+                   }
                },
                userDelete : function(response, user) {
                    var title = '<h3>Succussfully deleted</h3>';
                    var body = '<p>' + response.msg + '</p>';
                    topic.publish("/stomp/info", title + body);
                    dc.destroy(user.id + "_user_row");
+                   dojo.query("."+user.id+"_user_content_row").forEach(dojo.destroy);
                },
            });
 });

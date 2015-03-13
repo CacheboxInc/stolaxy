@@ -17,11 +17,16 @@
               <div style="text-align:center">
                   <a target="_blank" href="http://www.cachebox.com"><img style="width:250px; height:50px;padding-left:10px;" class="icon" src="./static/img/logo.png" alt="www.cachebox.com" /></a>
               </div>
+              {% if login_error %}
+                <div class="col-md-12 text-center">
+                   <div class="err-login"><strong>Oops! Invalid login. Check your login info and try again.</strong></div>
+                </div>
+              {% endif %}
               <div class="col-md-12">
-              <span class="col-md-6" style="font-weight:bold">Login:</span>
-                  <input type="text" class="col-md-6" name="login" style="margin-bottom:10px;"/>
+                  <span class="col-md-6" style="font-weight:bold">Login:</span>
+                  <input type="text" class="col-md-6" name="login" style="margin-bottom:10px;" placeholder="Enter Email Address"/>
                   <span class="col-md-6" style="font-weight:bold">Password:</span>
-                  <input value="" type="password" class="col-md-6" name="password" style="margin-bottom:10px;" />
+                  <input value="" type="password" class="col-md-6" name="password" style="margin-bottom:10px;" placeholder="Enter Password" />
               </div>
               <div class="col-md-12" style="text-align:right">
                   <button type="submit" class="btn btn-primary btn-sm active">Login</button>

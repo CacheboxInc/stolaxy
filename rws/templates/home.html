@@ -28,7 +28,7 @@
     <script src="./static/scripts/charts/d3.min.js" charset="utf-8"></script>
     <script src="./static/scripts/charts/radialProgress.js" charset="utf-8"></script>
     <script src="./static/scripts/charts/gauge.js" charset="utf-8"></script>
-    <!-- END: jQuery -->
+<!-- END: jQuery -->
 
     <!-- DOJO -->
     <script data-dojo-config="async: 0, dojoBlankHtmlUrl: '/blank.html', parseOnLoad:true,
@@ -73,6 +73,7 @@
         <script type="text/javascript">
             var username = "{{session['username']}}";
             var role = "{{session['role']}}";
+            var roles = {{roles}};
         </script>
 
     <title>Stolaxy Management Console</title>
