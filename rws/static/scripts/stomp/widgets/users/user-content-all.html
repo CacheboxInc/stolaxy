@@ -1,0 +1,44 @@
+{% if stats %}
+{% endif %}
+    <div class="main-content" style="padding-bottom:0px;padding-top:0px;">
+
+       <div class="row">
+           <div class="col-md-12">
+                <div class="panel">
+                    <div class="panel-heading">
+                        <h3 class="panel-title pull-left">Users</h3>
+                        <div class="clearfix"></div>
+                    </div>
+                    <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:500px;">
+                        <div id="user_listing" >
+                          <table class="table table-striped" >
+                            <thead>
+                              <tr>
+                                <th>User ID</th>
+			        <th>First Login</th>
+                                <th>Last Login</th>
+                                <th>Login Count</th>
+                                <th>Online</th>
+                              </tr>
+                            </thead>
+                            <tbody id="ulist_body">
+                            {% for u in users %}
+                              <tr>
+                                <td>{{u.id}}</td>
+			        <th>{{u.firstlogin}}</th>
+                                <th>{{u.lastlogin}}</th>
+                                <th>{{u.login_count}}</th>
+                                <th>{{u.online}}</th>
+                              </tr>
+                            {% endfor %}
+                            </tbody>
+                            <tfoot></tfoot>
+                           </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+

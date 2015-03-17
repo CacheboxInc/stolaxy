@@ -92,7 +92,7 @@ function initialize() {
 
                     new appContent({ 'node':'content', 'id': 'applications'});
                     new groupContent({ 'node':'content', 'id': 'groups'});
-                    new userContent({ 'node':'content', 'id': 'users'});
+                    new userContent({ 'node':'content', 'id': 'users', 'roles': roles});
 
                     new hostList({ 'node': 'control_panel', 'id': 'hosts_panel'});
                     $('#dashboard_panel_button').trigger('click');

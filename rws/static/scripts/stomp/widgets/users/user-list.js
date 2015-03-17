@@ -14,7 +14,8 @@ define("stomp/widgets/users/user-list", [
     "stomp/widgets/util",
     "stomp/widgets/users/user-opr",
     "stomp/widgets/users/user-row",
-    "stomp/widgets/users/user-content-row"
+    "stomp/widgets/users/user-content-row",
+    "stomp/widgets/users/user-content"
 ], function (
        declare,
        template,
@@ -31,7 +32,8 @@ define("stomp/widgets/users/user-list", [
        util,
        oprUser,
        rowUser,
-       rowUserContent
+       rowUserContent,
+       userContent
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -40,6 +42,7 @@ define("stomp/widgets/users/user-list", [
                    topic.subscribe("/stomp/user_create", lang.hitch(widget, 'userCreate'));
                    topic.subscribe("/stomp/user_change", lang.hitch(widget, 'userChange'));
                    topic.subscribe("/stomp/user_delete", lang.hitch(widget, 'userDelete'));
+                   topic.subscribe("/stomp/users_content", lang.hitch(widget, 'usersContent'));
                    widget.placeAt(this.node);
                    widget.template = new dtl.Template(widget.templateString);
                    var roles = JSON.parse(JSON.stringify(widget.roles));
@@ -60,7 +63,8 @@ define("stomp/widgets/users/user-list", [
                                new rowUserContent({
                                            'user': user,
                                            'node': 'ulist_body',
-                                           'pos': 'last'
+                                           'pos': 'last',
+                                           'roles': roles
                                });
                            });
                        },
@@ -138,5 +142,27 @@ define("stomp/widgets/users/user-list", [
                    dc.destroy(user.id + "_user_row");
                    dojo.query("."+user.id+"_user_content_row").forEach(dojo.destroy);
                },
+               usersContent : function(data) {
+                   var widget = this;
+                   xhr('/user/list', {
+                       'handleAs': 'json',
+                       'method': 'GET',
+                       'query': {
+                       }
+                   }).then(
+                       function (response) {
+                           new userContent({
+                                        'node': 'users',
+                                        'roles': widget.roles,
+                                        'opr': 'show-all',
+                                        'users': response.users,
+                                        'pos': 'only'
+                           });
+                       },
+                       function (error) {
+                               console.error(error.response.data.msg);
+                       });
+
+               }
            });
 });

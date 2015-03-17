@@ -13,6 +13,7 @@ define("stomp/widgets/users/user-row", [
     "stomp/widgets/msgbox",
     "stomp/widgets/util",
     "stomp/widgets/users/user-opr",
+    "stomp/widgets/users/user-content"
 ], function (
        declare,
        template,
@@ -27,7 +28,8 @@ define("stomp/widgets/users/user-row", [
        array,
        msgbox,
        util,
-       oprUser
+       oprUser,
+       userContent
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -72,6 +74,15 @@ define("stomp/widgets/users/user-row", [
                                 'opr': 'delete',
                                 'user': user
                                });
-               }
+               },
+               showUserProfile: function(evt) {
+                   var widget = this;
+                   new userContent({'opr': 'show-individual',
+                                    'user': widget.user,
+                                    'node': 'users',
+                                    'pos': 'only',
+                                    'roles': widget.roles
+                                  });
+               },
            });
 });

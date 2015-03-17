@@ -29,11 +29,40 @@ env = Environment(loader=FileSystemLoader('./templates'))
 class Users(object):
     exposed = True
 
+    applications = [
+                {'id': 1,
+                 'created': '2015-03-11 11:12:49',
+                 'modified': '2015-03-13 17:12:49',
+                 'atype': 1,
+                 'astate': 'play' 
+                },
+                {'id': 2,
+                 'created': '2015-03-11 11:12:49',
+                 'modified': '2015-03-13 17:12:49',
+                 'atype': 1,
+                 'astate': 'pause'
+                },
+                {'id': 3,
+                 'created': '2015-03-11 11:12:49',
+                 'modified': '2015-03-13 17:12:49',
+                 'atype': 1,
+                 'astate': 'stop'
+                },
+                {'id': 4,
+                 'created': '2015-03-11 11:12:49',
+                 'modified': '2015-03-13 17:12:49',
+                 'atype': 1,
+                 'astate': 'stop'
+                },
+            ]
     @authAdminRequestHandler
     def GET(self, arg):
         users = []
         for user in User.listing():
-            users.append(user.to_dict())
+            u = user.to_dict()
+            u['applications'] = self.applications
+            users.append(u)
+
         return {'users': users}
 
     def create(self, **data):
@@ -124,6 +153,7 @@ class Users(object):
         resp['msg'] = msg
         resp['error'] = error
         if userobj is not False:
+            userobj.applications = self.applications
             users = {}
             users['id'] = userobj.id
             users['fullname'] = userobj.fullname
@@ -137,6 +167,7 @@ class Users(object):
             users['login_count'] = userobj.login_count
             users['online'] = userobj.online
             users['role'] = userobj.role
+            users['applications'] = userobj.applications
             resp['users'] = [users]
         return resp
 

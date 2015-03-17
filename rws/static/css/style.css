@@ -912,3 +912,6 @@ li.accelerated {
     text-align: center;
 }
 
+#user-applications .table th {
+    text-align: center;
+}
