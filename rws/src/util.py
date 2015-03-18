@@ -43,16 +43,16 @@ def send_email(email_content, email_to, email_from=None, email_subject=None):
     msg['To'] = email_to
 
     try:
-      smtpObj = SMTP(C.GMAIL_SMTP, C.GMAIL_SMTP_PORT)
-      #Identify yourself to GMAIL ESMTP server.
+      smtpObj = SMTP(C.HOST_SMTP, C.HOST_SMTP_PORT)
+      #Identify yourself to ESMTP server.
       smtpObj.ehlo()
       #Put SMTP connection in TLS mode and call ehlo again.
       smtpObj.starttls()
       smtpObj.ehlo()
       #Login to service
-      smtpObj.login(user=C.GMAIL_USERNAME, password=C.GMAIL_PASSWORD)
+      smtpObj.login(user=C.HOST_USERNAME, password=C.HOST_PASSWORD)
       #Send email
-      smtpObj.sendmail(C.EMAIL_FROM, C.EMAIL_TO, msg.as_string())
+      smtpObj.sendmail(email_from, email_to, msg.as_string())
       #close connection and session.
       smtpObj.quit();
     except SMTPException as error:

@@ -14,8 +14,8 @@ EMAIL_FROM = 'mahendra.soni@cachebox.com'
 '''
 If you use gmail smtp to send emails. 
 '''
-GMAIL_USERNAME = 'mahendra.soni@cachebox.com'
-GMAIL_PASSWORD = 'pd4ff-qntMj4cV3D7a3YBQ'
-GMAIL_SMTP = 'smtp.mandrillapp.com'
-GMAIL_SMTP_PORT = 587
+HOST_USERNAME = 'mahendra.soni@cachebox.com'
+HOST_PASSWORD = 'pd4ff-qntMj4cV3D7a3YBQ'
+HOST_SMTP = 'smtp.mandrillapp.com'
+HOST_SMTP_PORT = 587
 
