@@ -75,7 +75,6 @@ define("stomp/widgets/users/user-list", [
                onCreate : function () {
                    var widget = this; 
                    var roles = JSON.parse(JSON.stringify(widget.roles));
-
                    xhr('/group/list', {
                        'handleAs': 'json',
                        'method': 'GET',
@@ -93,6 +92,10 @@ define("stomp/widgets/users/user-list", [
                        function (error) {
                                console.error(error.response.data.msg);
                        });
+                   $(document).on("keyup", "#user_email", function(e){
+                       widget.autoFillUsername($(this).val());
+                   });
+
                },
                userCreate : function(data) {
                    if (!data.error)
@@ -163,6 +166,13 @@ define("stomp/widgets/users/user-list", [
                                console.error(error.response.data.msg);
                        });
 
+               },
+               autoFillUsername: function(data) {
+                   //Do not allow special characters.
+                   //Stop append after '@'
+                   var pattern = /[&\/\\#,+()@$~%.'":*?<>{}]/g;
+                   if (data.indexOf('@') == -1)
+                       $("#user_name").val(data.replace(pattern, ''));
                }
            });
 });
