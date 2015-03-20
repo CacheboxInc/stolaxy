@@ -45,6 +45,7 @@ checksum_per_chunk_size = 4
 packet_size = 64 * 1024 
 max_chunks_per_packet = 127
 user_defined_params = ["namenode_ip", "datanode_ip", "namenode_port", "datanode_xferport", "datanode_infoport", "datanode_ipcport", "datanode_dir" , "StorageID"]
+connectionlost = 0
 
 HEX_FILTER=''.join([(len(repr(chr(x)))==3) and chr(x) or '.' for x in range(256)])
 def hexdump(prefix, src, length=16):
@@ -92,6 +93,29 @@ class DatanodeClientProtocol(Protocol):
     self.heartbeat_cnt = 0
     self.keep_running = 1
 
+  def transport_write_with_retry(self, buf, send_length = 1):
+
+	print "START: transport_write_with_retry"
+	retry = 5
+	while (connectionlost and retry):
+		print "retrying"
+		retry -= 1
+		time.sleep(3)
+
+	# TBD : How can be collect the error message of 
+	# transport.write
+	
+	try:
+		if send_length == 1:
+  		     self.transport.write(struct.pack(">I", len(buf)))
+	   	self.transport.write(buf)
+	except:
+		print "transport_write_with_retry: Something failed in context of send command" 
+		return 1
+
+	print "END: transport_write_with_retry"
+	return 0
+
   def send_heartbeat(self):
 
 	'''
@@ -103,7 +127,12 @@ class DatanodeClientProtocol(Protocol):
 	5. HadoopRpcRequestProto protobuf serialized message
 	'''
 	
-        print "[%d] Heartbeat request."  %(int(self.callid))	
+	'''
+	global connectionlost
+	connectionlost = 0
+	'''
+
+        #print "[%d] Heartbeat request."  %(int(self.callid))	
 	protocol = "org.apache.hadoop.hdfs.server.protocol.DatanodeProtocol"
 
 	''' Making of 3, the RPC header '''
@@ -201,15 +230,23 @@ class DatanodeClientProtocol(Protocol):
 	self.heartbeat_cnt += 1
 	while True:
 	  try:
+		'''
 		self.transport.write(struct.pack(">I", len(buf)))
 		self.transport.write(buf)
+		'''
+		self.transport_write_with_retry(buf)
 		#self.transport.write("\n")
 		break
 	  except:
 		print "Something Failed in cotnext of transport."
 
   def BlockReportResponseProto(self, message, callid=None):
-	print "In BlockReportResponseProto"
+	#print "In BlockReportResponseProto"
+	#
+	# We may get addition command in return  like deleteblock or transfer block 
+	# check how namenode is going to declare a node dead and then inatiate the transfer 
+	# request
+	# 
 	pass
 
   def send_blockreport(self):
@@ -223,7 +260,7 @@ class DatanodeClientProtocol(Protocol):
 	5. HadoopRpcRequestProto protobuf serialized message
 	'''
 	
-        print "Block report...."	
+        #print "Block report...."
 	entries = os.listdir(data_dir)
 	if not len(entries):
 	    print "no block file"
@@ -274,7 +311,7 @@ class DatanodeClientProtocol(Protocol):
 		if file.endswith("meta"):
 			continue
 
-		print "Filename for block report..", file
+		#print "Filename for block report..", file
 		breakup = file.split("-")
 		poolID = (breakup[0]) + "-" + (breakup[1]) + "-" + (breakup[2]) + "-" + (breakup[3])
 		blockID = long(breakup[4])
@@ -293,14 +330,21 @@ class DatanodeClientProtocol(Protocol):
 
 	''' making of 1 '''
 	buf = headerout + reqout
+	self.transport_write_with_retry(buf)
+	'''
 	self.transport.write(struct.pack(">I", len(buf)))
 	self.transport.write(buf)
+	'''
 
   def RegisterResponse(self, message, callid=None):
-        print "Got the ACK for data node register request."
+        #print "Got the ACK for data node register request."
         ''' Start the heartbeat message, create a thread 
 	separately to do so, No one will wait to call 
 	join on it '''
+	
+	global connectionlost
+	connectionlost = 0
+
 	data_protocol = DatanodeProtocol.RegisterDatanodeResponseProto()
 	data_protocol.ParseFromString(message)
 	self.datanode_reponse_info = data_protocol.registration
@@ -329,7 +373,20 @@ class DatanodeClientProtocol(Protocol):
   def HeartbeatResponse (self, message, callid=None):
         print "[%d] Heartbeat response." %int(callid)
 	self.heartbeat_cnt -= 1
-       	
+
+	# Check if namenode has passed datanode any command
+	# in response
+
+	hbeat_res_protocol = DatanodeProtocol.HeartbeatResponseProto()
+	hbeat_res_protocol.ParseFromString(message)
+	if len(hbeat_res_protocol.cmds):
+	   for cmd in hbeat_res_protocol.cmds:
+		# Namenode wants datanode to execute some cmds,
+		# what are those. 
+		print "Command to execute from Namenode to DataNode...::", cmd.Type
+	
+	return 0
+
   def RegisterDataNode(self):
 	
 	'''
@@ -411,8 +468,12 @@ class DatanodeClientProtocol(Protocol):
 	''' making of 1 '''
 	buf = headerout + reqout
 	#print "length : %d" %len(buf)
+
+	self.transport_write_with_retry(buf)
+	'''
 	self.transport.write(struct.pack(">I", len(buf)))
 	self.transport.write(buf)
+	'''
   
   def BlockReceivedRequest(self, poolID, blockID, genStamp, numBytes, status):
 
@@ -488,9 +549,13 @@ class DatanodeClientProtocol(Protocol):
 	''' making of 1 '''
 	buf = headerout + reqout
 #	print "length : %d" %len(buf)
+
+	self.transport_write_with_retry(buf)
+	'''
 	self.transport.write(struct.pack(">I", len(buf)))
 	self.transport.write(buf)
-	print "In BlockReceivedRequest End.................." 
+	'''
+	#print "In BlockReceivedRequest End.................." 
   
   def BlockReceivedResponse(self, message, callid=None):
 	#print "In BlockReceivedResponse start.................." 
@@ -498,7 +563,7 @@ class DatanodeClientProtocol(Protocol):
 
 
   def VersionRequestResponse(self, message, callid=None):
-    	print "Message from server"
+    	#print "Message from server"
 
     	'''
 	From hdfs protocol 
@@ -517,7 +582,7 @@ class DatanodeClientProtocol(Protocol):
 	desearlized the whole message in the calller but only the partial one ''' 
 	response = hdfs.VersionResponseProto()
 	response.ParseFromString(message)
-	print("Response from namenode for VersionRequest:\n%s" % (str(response)))
+	#print("Response from namenode for VersionRequest:\n%s" % (str(response)))
 	self.storageinfo = hdfs.StorageInfoProto()
 	self.storageinfo.CopyFrom(response.info.storageInfo)
 	#print("Storage info:\n%s" % (str(self.storageinfo)))
@@ -559,9 +624,13 @@ class DatanodeClientProtocol(Protocol):
 	context.protocol = protocol
 	context = context.SerializeToString()
 
+	self.transport_write_with_retry(preamble, 0)
+	'''
 	self.transport.write(preamble)
 	self.transport.write(struct.pack(">I", len(context)))
 	self.transport.write(context)
+	'''
+	self.transport_write_with_retry(context)
 
 	# --- RPC ---
 	# Client.sendParam()
@@ -590,8 +659,11 @@ class DatanodeClientProtocol(Protocol):
 	
 	#print "length : %d" %len(buf)
 
+	self.transport_write_with_retry(buf)
+	'''
 	self.transport.write(struct.pack(">I", len(buf)))
 	self.transport.write(buf)
+	'''
   
   def display_err_msg(self, recv_message):
    
@@ -739,13 +811,13 @@ class ThreadClass (threading.Thread):
 	   serv_sock.close()
 
 	elif related_object.string == "start-heartbeat":
-	   print "Starting heartbeat thread."
+	   #print "Starting heartbeat thread."
 	   while related_object.keep_running:
 		if related_object.heartbeat_cnt <= 0:
 			related_object.send_heartbeat()
 		time.sleep(related_object.heartbeat_interval)
 
-	   print "Exiting heartbeat thread."
+	   #print "Exiting heartbeat thread."
 
 	elif related_object.string == "start-blockreport":
 	   while related_object.keep_running:
@@ -753,7 +825,7 @@ class ThreadClass (threading.Thread):
 		time.sleep(related_object.blockreport_interval)
 
 	elif related_object.string == "recv-connection-context":
-		print "In recv-connection-context", self.client_socket, self.client_addr
+		#print "In recv-connection-context", self.client_socket, self.client_addr
 		related_object.process_per_connection_recv(self.client_socket, self.client_addr)
 
 class DataXceiver(object):
@@ -842,14 +914,16 @@ class DataXceiver(object):
 		    if len(data_to_process) == 0:
 	            	time.sleep(1)
 			continue
+		    '''
 		    else:
 		    	print "Pending data size is : %d" %len(data_to_process) 
+		    '''
                 else:
-	            print e
+	            #print e
 		    break
 	   except socket.error, e:
 	        # Something else happened, handle error, exit, etc.
-	        print e
+	        #print e
 		break
 	   else:
 	   	if len(data) == 0 and len(data_to_process):
@@ -868,7 +942,7 @@ class DataXceiver(object):
 			    data = data_to_process
 			    data_to_process = ""
 
-			print "data_to_process", data_to_process
+			#print "data_to_process", data_to_process
 			# Get the header information out 
 			client_version = struct.unpack('>h', data[:2])
 			#print('Client version is.... : %s' %client_version)
@@ -894,7 +968,7 @@ class DataXceiver(object):
 
 			data = data_to_process[0 : ret]
 			data_to_process = data_to_process[ret :]
-			print "Go to start processing. Pending data is", opcode, len(data_to_process)
+			#print "Go to start processing. Pending data is", opcode, len(data_to_process)
 			remaining = data
 
 	   if opcode == 80:
@@ -1006,7 +1080,7 @@ class DataXceiver(object):
 	return 0
 
     def process_read(self, data, stage, client_socket):
-	print "got the read operation..."
+	#print "got the read operation..."
 	#print ("\n%s" % (hexdump("Msg", data)))
 	#print ("\nsize of data %d" %len(str(data)))
 	buf = None
@@ -1019,29 +1093,26 @@ class DataXceiver(object):
 		client_ip_header = datatransfer.ClientOperationHeaderProto()
 		client_ip_header.CopyFrom(read_protocol.header)
 
-		print "poolID", client_ip_header.baseHeader.block.poolId
-		print "blockID", client_ip_header.baseHeader.block.blockId
+		#print "poolID", client_ip_header.baseHeader.block.poolId
+		#print "blockID", client_ip_header.baseHeader.block.blockId
 		'''
 		print "generationStamp", client_ip_header.baseHeader.block.generationStamp
 		print "numBytes", client_ip_header.baseHeader.block.numBytes
-		'''
-
 		if read_protocol.header.baseHeader.HasField('token'):
 		   # Display Token information
-		   print "Token kind", read_protocol.header.baseHeader.token.kind, read_protocol.header.baseHeader.token.service
-		'''
+		   #print "Token kind", read_protocol.header.baseHeader.token.kind, read_protocol.header.baseHeader.token.service
 		else:
 		   print "No token field"
 		'''
 
 		# TBD: Verify that we do have this block present to read 
 		filename = str(client_ip_header.baseHeader.block.poolId) + "-" + str(client_ip_header.baseHeader.block.blockId) + "-" + str (client_ip_header.baseHeader.block.generationStamp)
-		print "Filename requested...", filename
+		#print "File requested...", filename
 		ret = self.verify_file_exists(filename)
 
 		# Print Offset and length 
-		print "Offset:" , read_protocol.offset
-		print "len:" , read_protocol.len
+		#print "Offset:" , read_protocol.offset
+		#print "len:" , read_protocol.len
 		
 	
      		# Return back the ack 
@@ -1071,27 +1142,27 @@ class DataXceiver(object):
 		
 		# Make offset chunk size aligned by rounding it down
 		offset_to_start = read_protocol.offset - (read_protocol.offset % chunk_size)
-		print "offset_to_start", offset_to_start
+		#print "offset_to_start", offset_to_start
 		# length to read will increase accordingly
 		len_to_read = read_protocol.len + read_protocol.offset % chunk_size
-		print "len_to_read", len_to_read
+		#print "len_to_read", len_to_read
 		# Length may be bigger than packet size, break it into packets and then
 		# process it
 
 		data_portion_per_packet = max_chunks_per_packet * chunk_size
 		full_packets = int(len_to_read / data_portion_per_packet)
-		print "full_packets_cnt", full_packets
+		#print "full_packets_cnt", full_packets
 
 		if len_to_read % data_portion_per_packet:
 			partial_packet = 1
-		print "partial_packet_cnt", partial_packet
+		#print "partial_packet_cnt", partial_packet
 			
 		current_read_offset = offset_to_start
 		read_len = max_chunks_per_packet * chunk_size
 		seqno = 0
 		for i in range(0, full_packets):
 			# Ask for a packet size to read 
-			print "i", i, "seqno:", seqno, "current_read_offset:", current_read_offset, "read_len:", read_len
+			#print "i", i, "seqno:", seqno, "current_read_offset:", current_read_offset, "read_len:", read_len
 			self.return_packet(filename, client_socket, read_len, current_read_offset, seqno, lastinblock)	
 			current_read_offset += read_len
 			seqno += 1
@@ -1099,7 +1170,7 @@ class DataXceiver(object):
 		# Read any Partial filled packet 
 		read_len = len_to_read - full_packets * data_portion_per_packet
 		#seqno += 1
-		print "seqno:", seqno, "current_read_offset:", current_read_offset, "read_len:", read_len
+		#print "seqno:", seqno, "current_read_offset:", current_read_offset, "read_len:", read_len
 		self.return_packet(filename, client_socket, read_len, current_read_offset, seqno, lastinblock)	
 		current_read_offset += read_len
 
@@ -1108,7 +1179,7 @@ class DataXceiver(object):
 		# Sequence number should be bumped by 1 
 		seqno += 1
 		#self.return_packet(filename, client_socket, 0, read_protocol.len + read_protocol.offset, seqno, lastinblock)
-		print "seqno:", seqno, "current_read_offset:", current_read_offset, "read_len:", 0
+		#print "seqno:", seqno, "current_read_offset:", current_read_offset, "read_len:", 0
 		#self.return_packet(filename, client_socket, read_len, read_len + current_read_offset, seqno, lastinblock)
 		self.return_packet(filename, client_socket, read_len, current_read_offset, seqno, lastinblock)
 		# TBD : This may be wrong, need to improve this. How do we know that we had reached 
@@ -1169,12 +1240,12 @@ class DataXceiver(object):
 		    else:
 			break
                 else:
-	            print e
+	            #print e
 		    data_to_process = ""
 		    break
 	   except socket.error, e:
 	        # Something else happened, handle error, exit, etc.
-	        print e
+	        #print e
 		data_to_process == ""
 		break
 	   else:
@@ -1248,9 +1319,11 @@ class DataXceiver(object):
 		if len(recv_data) == 0:
 			print "failed to get ACK from data node:", local_object.rep_host_ip
 			# Send the Error to upstream 
+		'''
 		else:
-			print "Received data is off size : %d" %len(recv_data)
-			print ("\n%s" % (hexdump("Msg", recv_data)))
+			#print "Received data is off size : %d" %len(recv_data)
+			#print ("\n%s" % (hexdump("Msg", recv_data)))
+		'''
 				
 
 		# Else Process the ACK
@@ -1258,7 +1331,7 @@ class DataXceiver(object):
 		(size, new_position) = decoder._DecodeVarint(recv_data,0)
 	 	buf = datatransfer.BlockOpResponseProto()
 		buf.ParseFromString(recv_data[new_position:new_position+size])
-		print "Status from", local_object.rep_host_ip, "is ::", buf.status
+		#print "Status from", local_object.rep_host_ip, "is ::", buf.status
 		if buf.status != 0:
 			print "Error from node:", local_object.rep_host_ip
 		
@@ -1269,7 +1342,7 @@ class DataXceiver(object):
 
 		rep_socket = local_object.rep_socket
 		try:
-			print "replication_related_processing :::", len(data_to_send)
+			#print "replication_related_processing :::", len(data_to_send)
 			rep_socket.sendall(data_to_send)
 		except socket.error, msg:
        			print "Couldn't send data to the socket-server: %s\n terminating program" % msg
@@ -1280,13 +1353,13 @@ class DataXceiver(object):
 			print "failed to get ACK from data node:", local_object.rep_host_ip
 			# Send the Error to upstream 
 		else:
-			print "Received data is off size : %d" %len(recv_data)
-			print ("\n%s" % (hexdump("Msg", recv_data)))
+			#print "Received data is off size : %d" %len(recv_data)
+			#print ("\n%s" % (hexdump("Msg", recv_data)))
 		
 			buf = datatransfer.PipelineAckProto()
 			(size, new_position) = decoder._DecodeVarint(recv_data,0)
 			buf.ParseFromString(recv_data[new_position:new_position+size])
-			print "ACK for seqno...................... :", buf.seqno, "status", buf.status[0]
+			#print "ACK for seqno...................... :", buf.seqno, "status", buf.status[0]
 			#local_object.pipeline_results.append(buf.status)
 			if buf.status[0] != 0:
 				print "Write failed on downstream node"
@@ -1309,14 +1382,14 @@ class DataXceiver(object):
 		client_ip_header = datatransfer.ClientOperationHeaderProto()
 		client_ip_header.CopyFrom(write_protocol.header)
 
-		print "poolID", client_ip_header.baseHeader.block.poolId
-		print "blockID", client_ip_header.baseHeader.block.blockId
+		#print "poolID", client_ip_header.baseHeader.block.poolId
+		#print "blockID", client_ip_header.baseHeader.block.blockId
 		'''
 		print "generationStamp", client_ip_header.baseHeader.block.generationStamp
 		print "numBytes", client_ip_header.baseHeader.block.numBytes
 		'''
 
-		# Storage it so that we can use later 
+		# Store it so that we can use later 
 		self.poolID = client_ip_header.baseHeader.block.poolId
 		self.blockID = client_ip_header.baseHeader.block.blockId
 		self.genStamp = client_ip_header.baseHeader.block.generationStamp
@@ -1332,22 +1405,22 @@ class DataXceiver(object):
 		target = ""
 		target_list = []
 		for target in write_protocol.targets:
-			print "target", target
+			#print "target", target
 			target_list.append(target) 
 			
-		print "target_cnt", len(target_list)
+		#print "target_cnt", len(target_list)
 
 		if write_protocol.HasField('source'):
 		   datainfo_source = hdfs.DatanodeInfoProto()
 		   datainfo_source.CopyFrom(write_protocol.source)
-		   print "datainfo_source capacity %d:" %(datainfo_source.capacity)
+		   #print "datainfo_source capacity %d:" %(datainfo_source.capacity)
 		   local_object.got_source = 1
 		else:
-		   print "No source field"
+		   #print "No source field"
 		   local_object.got_source = 0
 
 		# PIPELINE_SETUP_CREATE
-		print "write_protocol.pipelineSize::", write_protocol.pipelineSize
+		#print "write_protocol.pipelineSize::", write_protocol.pipelineSize
 		if write_protocol.pipelineSize > 1 and write_protocol.stage == 6:
 		
 			rep_obj = datatransfer.OpWriteBlockProto()
@@ -1361,8 +1434,8 @@ class DataXceiver(object):
 			
 			local_object.rep_host_ip = target_list[0].id.ipAddr
 			local_object.rep_host_port = target_list[0].id.xferPort
-			print "rep_obj.rep_host_ip", local_object.rep_host_ip
-			print "rep_obj.rep_host_port", local_object.rep_host_port
+			#print "rep_obj.rep_host_ip", local_object.rep_host_ip
+			#print "rep_obj.rep_host_port", local_object.rep_host_port
 			first_entry = 1
 			for remaining_target in target_list[0:]:
 				if first_entry:
@@ -1380,6 +1453,7 @@ class DataXceiver(object):
 			local_object.pipeline_results = []
 			local_object.rep_obj = None 
 		
+		'''
 		print "BlockConstructionStage", write_protocol.stage
 		print "pipelineSize", write_protocol.pipelineSize
 		print "minBytesRcvd", write_protocol.minBytesRcvd
@@ -1387,6 +1461,7 @@ class DataXceiver(object):
 		print "latestGenerationStamp", write_protocol.latestGenerationStamp
 		print "checksum type", write_protocol.requestedChecksum.type
 		print "bytesPerChecksum", write_protocol.requestedChecksum.bytesPerChecksum
+		'''
 		self.bytesperchecksum = write_protocol.requestedChecksum.bytesPerChecksum
 	
 		# Create the file name
@@ -1402,7 +1477,7 @@ class DataXceiver(object):
 		buf.status = 0
 		stage = 2
 		if buf != None:
-			print "sending ACK to", local_object.addr
+			#print "sending ACK to", local_object.addr
 			out = buf.SerializeToString()
 			out = encoder._VarintBytes(len(out)) + out
 			client_socket.send(out)
@@ -1430,9 +1505,9 @@ class DataXceiver(object):
 		packet_header = datatransfer.PacketHeaderProto()
 		packet_header.ParseFromString(data[6:6 + int(header_length)])
 
+		'''
 		print "Request for seqno:offset ....", packet_header.seqno, packet_header.offsetInBlock
 		print "offsetInBlock", packet_header.offsetInBlock, "DataLen:", packet_header.dataLen
-		'''
 		print "lastPacketInBlock", packet_header.lastPacketInBlock
 		print "dataLen", packet_header.dataLen
 		'''
@@ -1515,7 +1590,7 @@ class DataXceiver(object):
 
 			buf = datatransfer.PipelineAckProto()
 			buf.seqno = packet_header.seqno
-			print "ACK for seqno...................... :", buf.seqno
+			#print "ACK for seqno...................... :", buf.seqno
 			buf.status.append(0)
 			'''
 			if len(local_object.pipeline_results):
@@ -1534,7 +1609,7 @@ class DataXceiver(object):
 			stage = 2 
 			buf = datatransfer.PipelineAckProto()
 			buf.seqno = packet_header.seqno
-			print "Last Packet in the block, ACK for seqno...................... :", buf.seqno
+			#print "Last Packet in the block, ACK for seqno...................... :", buf.seqno
 			buf.status.append(0)
 			if buf != None:
 				out = buf.SerializeToString()
@@ -1551,11 +1626,11 @@ class DataXceiver(object):
 				self.mdata_filefd.close()
 				self.mdata_filefd = None
 
-			print "Response from CA datanode......"
+			#print "Response from CA datanode......"
 			# Inform Namenode first about this new block (Received)
 			self.datanode.datanodeprotocol.BlockReceivedRequest(self.poolID, self.blockID, self.genStamp, self.numBytes, 2)
 			if local_object.got_source == 0:
-				print "Final ACK to the client. local_object.got_source", local_object.got_source
+				#print "Final ACK to the client. local_object.got_source", local_object.got_source
 				# Create buffer for ACK 
 			 	buf = datatransfer.BlockOpResponseProto()
 				buf.message = "Response from CA datanode......"
@@ -1613,6 +1688,13 @@ class DataNodeFactory(ClientFactory):
   def clientConnectionFailed(self, connector, reason):
         print "Connection failed - goodbye! %s" %reason
         reactor.stop()
+
+  def clientConnectionLost(self, connector, reason):
+        print "Connection Lost %s. Trying to reconnect" %reason
+	global connectionlost
+	connectionlost = 1
+	connector.connect()
+	connectionlost = 0
     
   def buildProtocol(self, addr):
     print('Started connecting')
@@ -1660,7 +1742,8 @@ if __name__ == "__main__":
 	if value:
 	   configuration [key] = value
 
-    # We are looking for 8 parameters to be defined by user now in the conf file 
+    # We are looking for 8 parameters to be defined by user 
+    # now in the conf file 
     # TBD : Need to read these from hadoop XML conf files 
     if len(configuration) != len(user_defined_params): 
 	    usage()
@@ -1678,7 +1761,7 @@ if __name__ == "__main__":
 
 	sys.exit(1)
 
-    socket.gethostbyname(configuration['datanode_name'])
+    ip = socket.gethostbyname(configuration['datanode_name'])
     if ip:
 	configuration['datanode_ip'] = ip
     else:
