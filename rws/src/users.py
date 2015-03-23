@@ -56,12 +56,25 @@ class Users(object):
                 },
             ]
     @authAdminRequestHandler
-    def GET(self, arg):
+    def GET(self, arg, id=None):
         users = []
-        for user in User.listing():
-            u = user.to_dict()
-            u['applications'] = self.applications
-            users.append(u)
+        if arg == 'nongrouplist':
+            #Fetch only users that are not added to any group.
+            if id is not None:
+                allusers = User.nongrouplisting(id)
+            else:
+                allusers = User.nongrouplisting()
+
+            for user in allusers:
+                u = user.to_dict()
+                u['applications'] = self.applications
+                users.append(u)
+        else:
+            #Fetch all users whether added to group or not.
+            for user in User.listing():
+                u = user.to_dict()
+                u['applications'] = self.applications
+                users.append(u)
 
         return {'users': users}
 

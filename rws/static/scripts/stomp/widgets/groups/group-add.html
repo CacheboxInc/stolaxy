@@ -16,7 +16,7 @@
                   <span class="col-md-5">
                     Add users to group:
                   </span>
-                  <div class="col-md-5 panel" style="clear:none;">
+                  <div id="user-list-in-group" class="col-md-6 panel" style="clear:none;">
                       <div style="border-bottom: 1px solid #ddd;">
                           <input type="checkbox" name="selectALL" data-dojo-attach-event="onclick:selectall"></input>
                           <span>Select All</span>
@@ -25,11 +25,14 @@
                           {% for user in users %}
                               <div>
                                 <input type="checkbox" value={{user.id}}></input>
-                                <span>{{user.name}}</span>
+                                <span>{{user.fullname}}</span>
                               </div>
                           {% endfor %}
                        </div>
                    </div>
+                  <div id="user-list-warning" class="col-md-6 panel" style="clear:none;display:none;font-size:12px;">
+                    No users available to add to the group.
+                  </div>
                 </div>
                 <div class="clearfix"></div>
             </div>

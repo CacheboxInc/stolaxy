@@ -117,6 +117,22 @@ class User(object):
     def listing(cls):
         return session.query(DBUser).filter(DBUser.role != 'admin')
 
+    @classmethod
+    def nongrouplisting(cls, id=None):
+        '''
+        id: optional param
+        if id is given, check for all users having
+        userid equals to given id or None.
+        '''
+        if id is not None:
+            return session.query(DBUser).filter(
+                       sqlalchemy.or_(DBUser.group_id.is_(None), DBUser.id == id), DBUser.role !='admin'
+                   )
+        else:
+            return session.query(DBUser).filter(DBUser.group_id.is_(None), DBUser.role != 'admin')
+
+
+
 if __name__ == '__main__':
     group1 = Group.create_or_get('test_group1')
     user = User.create_or_get('test_user1', group1)

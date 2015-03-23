@@ -915,3 +915,6 @@ li.accelerated {
 #user-applications .table th {
     text-align: center;
 }
+.link line {
+    stroke: #696969;
+}

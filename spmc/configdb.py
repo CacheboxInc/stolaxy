@@ -48,7 +48,8 @@ class DBGroup(Base):
     def to_dict(self):
         users = []
         for user in self.users:
-            users.append(user.to_dict())
+            if user.role != 'admin':
+                users.append(user.to_dict())
 
         return {
             'id': self.id,
@@ -94,15 +95,16 @@ class DBUser(Base):
         if self.group_id:
             query = session.query(DBGroup)
             group = query.filter(DBGroup.id == self.group_id).one()
+            group_dict = {'id': group.id, 'name': group.name}
         else:
-            group = None
+            group_dict = self.group_id
 
         return {
             'id': self.id,
             'created': str(self.created),
             'modified': str(self.modified),
             'username': self.username,
-            'group': group,
+            'group': group_dict,
             'role': self.role,
             'email': self.email,
             'fullname': self.fullname,
