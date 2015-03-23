@@ -48,7 +48,7 @@ class Configuration(object):
                 modified = now,
                 username = 'administrator',
                 password = pwd,
-                email = 'admin@cachebox.com',
+                email = 'admin@stomp.com',
                 role = 'admin',
                 group_id = defaultgroup.id
                 )
