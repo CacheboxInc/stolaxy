@@ -40,6 +40,7 @@ define("stomp/widgets/groups/group-list", [
                    topic.subscribe("/stomp/group_create", lang.hitch(widget, 'groupCreate'));
                    topic.subscribe("/stomp/group_change", lang.hitch(widget, 'groupChange'));
                    topic.subscribe("/stomp/group_delete", lang.hitch(widget, 'groupDelete'));
+                   topic.subscribe("/stomp/groups_content", lang.hitch(widget, 'groupsContent'));
                    widget.placeAt(this.node);
                    widget.template = new dtl.Template(widget.templateString);
                    
@@ -229,6 +230,26 @@ define("stomp/widgets/groups/group-list", [
                                  'pos': 'only'
                               });
                    dc.destroy(group.id + "_group_row");
+               },
+               groupsContent: function() {
+                   var widget = this;
+                   xhr('/group/list', {
+                       'handleAs': 'json',
+                       'method': 'GET',
+                       'query': {
+                       }
+                   }).then(
+                       function (response) {
+                           new groupContent({
+                                        'node': 'groups',
+                                        'pos': 'only',
+                                        'groups': response.groups,
+                                        'opr': 'resetContainer'
+                           });
+                       },
+                       function (error) {
+                               console.error(error.response.data.msg);
+                       });
                }
            });
 });

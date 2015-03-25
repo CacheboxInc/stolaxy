@@ -59,9 +59,8 @@ define("stomp/widgets/users/user-row", [
                                          'user': user,
                                          'roles': roles
                                         });
-                           dojo.forEach(user_group, function(group, index) {
-                               $("#" + group).attr("checked", true);
-                          });
+                           //Since we are allowing one group only for a user.
+                           $("#"+user_group.id).attr("checked", true);
                        },
                        function (error) {
                                console.error(error.response.data.msg);

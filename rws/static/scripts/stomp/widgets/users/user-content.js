@@ -42,7 +42,23 @@ define("stomp/widgets/users/user-content", [
                    widget.placeAt(widget.node, widget.pos);
                    widget.template = new dtl.Template(widget.templateString);
                    if (widget.opr == "show-individual") {
-                       widget.plotContainerBar([[[0, 1]], [[1, 1]], [[2, 2]]]); 
+                       var data = [
+                           {data: [[0,1]], color: "#3c763d"},
+                           {data: [[1,1]], color: "#ffff66"},
+                           {data: [[2,2]], color: "#a94442"},
+                       ];
+                       widget.plotContainerBar(data); 
+                   } else {
+                       var data = [];
+                       if (typeof widget.users !== 'undefined') {
+                           $.each(widget.users, function(index, obj){
+                               var temp = {}
+                               temp['label'] = obj.fullname;
+                               temp['data'] = Object.keys(obj.applications).length;
+                               data.push(temp);
+                           });
+                           widget.plotApplicationPie(data);
+                       }
                    }
                },
                postMixInProperties: function () {
@@ -56,7 +72,7 @@ define("stomp/widgets/users/user-content", [
                plotContainerBar : function(app_stats) {
                     var widget = this;
                     widget.barOpts = graphUtils.getGraphOptions("bar");
-                    widget.barOpts.yaxis.axisLabel = '<span class="fa" style="font-size:10px;"># Containers</span>';
+                    widget.barOpts.yaxis.axisLabel = '<span class="fa" style="font-size:10px;"># Applications</span>';
                     widget.barOpts.series.bars.barWidth = 1;
                     widget.barOpts.series.bars.zero = false;
                     widget.barOpts.xaxis.axisLabelPadding = 100;
@@ -71,6 +87,22 @@ define("stomp/widgets/users/user-content", [
                showAllUsers: function (evt) {
                    var widget = this;
                    topic.publish("/stomp/users_content");
+               },
+               plotApplicationPie: function(app_stats) { 
+                   var widget = this;
+                   widget.pieOpts = graphUtils.getGraphOptions("pie");
+                   widget.pieOpts.series.pie.label.formatter = function (label, series) {
+                       return '<div style="font-size:8pt;text-align:center;padding:5px;color:white;">' + series.data[0][1] +  '</div>';
+                   }
+                   widget.pieOpts.tooltipOpts.content = function(label, xval, yval, flotItem) {
+                       return yval[0][1] + " application(s)";
+                   }
+                   $.plot($("#all_users_stats_pie_container"), app_stats, widget.pieOpts);
+               },
+               plotApplicationLine: function(app_stats) { 
+                   var widget = this;
+                   widget.lineOpts = graphUtils.getGraphOptions("line");
+                   $.plot($("#all_users_stats_line_container"), app_stats, widget.lineOpts);
                }
            });
 });

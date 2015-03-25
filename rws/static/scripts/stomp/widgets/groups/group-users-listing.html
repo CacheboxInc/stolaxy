@@ -1,0 +1,59 @@
+{% if stats %}
+{% endif %}
+<div>
+    <div class="main-content" style="padding-bottom:0px;padding-top:0px;">
+
+       <div class="row">
+           <div class="col-md-12">
+                <div class="panel">
+                    <div class="panel-heading">
+                        <h3 class="panel-title pull-left">
+                          <span class="value fa">
+                            <a href="#" data-dojo-attach-event="onclick:showAllGroups">Groups</a> > 
+                          </span>
+                          {{group.name}}
+                        </h3>
+                        <div class="clearfix"></div>
+                    </div>
+                    <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:500px;">
+                        <div id="symbols" class="pull-left"></div>
+                        <!-- Show group users -->
+                        <div id="group_users">
+                          <table class="table table-striped" >
+                            <thead>
+                              <tr>
+                                <th>Email</th>
+			        <th>First Login</th>
+                                <th>Last Login</th>
+                                <th>Login Count</th>
+                                <th>Online</th>
+                              </tr>
+                            </thead>
+                            <tbody id="grpup_ulist_body">
+                            {% for u in group.users %}
+                              <tr>
+                                <td>{{u.email}}</td>
+			        <td>{{u.firstlogin}}</td>
+                                <td>{{u.lastlogin}}</td>
+                                <td>{{u.login_count}}</td>
+                                <td>
+                                    {% if user.online %}
+                                      <i class="fa fa-check-circle"></i>
+                                    {% else %}
+                                      <i class="fa fa-times-circle fa-1x"></i> 
+                                    {% endif %}
+                                </td>
+                              </tr>
+                            {% endfor %}
+                            </tbody>
+                            <tfoot></tfoot>
+                           </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+

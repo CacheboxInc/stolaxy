@@ -53,7 +53,7 @@
                       <form style="height:60px; overflow-y:auto;" id="user_groups">
                           {% for group in groups %}
                               <div>
-                                <input type="radio" id="{{group.id}}" value="{{group.id}}" name="selected_group" disabled="disabled"></input>
+                                <input type="radio" id="{{group.id}}" value="{{group.id}}" name="selected_group" ></input>
                                 <span>{{group.name}}</span>
                               </div>
                           {% endfor %}

@@ -13,6 +13,7 @@ define("stomp/widgets/groups/group-row", [
     "stomp/widgets/msgbox",
     "stomp/widgets/util",
     "stomp/widgets/groups/group-opr",
+    "stomp/widgets/groups/group-content"
 ], function (
        declare,
        template,
@@ -27,7 +28,8 @@ define("stomp/widgets/groups/group-row", [
        array,
        msgbox,
        util,
-       oprGroup
+       oprGroup,
+       groupContent
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -83,6 +85,15 @@ define("stomp/widgets/groups/group-row", [
                                  'group': group
                                });
 
+               },
+               showGroupInfo: function() {
+                   var widget = this;
+                           new groupContent({'node': 'groups',
+                                             'pos': 'only',
+                                             'opr': 'showGroupUsers',
+                                             'group': widget.group
+                                            });
                }
+ 
            });
 });

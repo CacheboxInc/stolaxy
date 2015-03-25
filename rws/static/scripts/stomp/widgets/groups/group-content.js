@@ -2,6 +2,7 @@ define("stomp/widgets/groups/group-content", [
     "dojo/_base/declare",
     "dojo/text!./group-content.html",
     "dojo/text!./group-content-row.html",
+    "dojo/text!./group-users-listing.html",
     "dijit/_WidgetBase",
     "dojox/dtl/_Templated",
     "dojox/dtl",
@@ -17,7 +18,8 @@ define("stomp/widgets/groups/group-content", [
 ], function (
        declare,
        template,
-       templateAddRow,
+       templateResetContent,
+       templateUserListing,
        WidgetBase,
        TemplatedMixin,
        dtl,
@@ -38,12 +40,15 @@ define("stomp/widgets/groups/group-content", [
                    widget.placeAt(this.node, this.pos);
                    widget.template = new dtl.Template(widget.templateString);
                    //Initialize d3 content here
-                   widget.initGroupContent();
+                   if (widget.opr != "showGroupUsers")
+                       widget.initGroupContent();
                },
                postMixInProperties: function() {
                    var widget = this;
                    if (widget.opr == "resetContainer") {
-                       widget.templateString = templateAddRow;
+                       widget.templateString = templateResetContent;
+                   } else if (widget.opr == 'showGroupUsers') {
+                       widget.templateString = templateUserListing;
                    }
                },
                initialize: function() {
@@ -143,7 +148,13 @@ define("stomp/widgets/groups/group-content", [
                                             d3.select(this).append("text")
                                                            .attr("dy", ".35em")
                                                            .attr("text-anchor", "middle")
-                                                           .text(function(d){ return d.id })
+                                                           .text(function(d) { 
+                                                               if ( d.hasOwnProperty("users") ){
+                                                                   return "G-"+d.id;
+                                                               } else {
+                                                                   return "U-"+d.id;
+                                                               }
+                                                           });
                                             d3.select(this).call(widget.force.drag)
                                         });
 
@@ -182,6 +193,10 @@ define("stomp/widgets/groups/group-content", [
                       .attr("dx", ".75em")
                       .attr("dy", "10.5em")
                       .text("User");
+               },
+               showAllGroups: function() {
+                   var widget = this;
+                   topic.publish("/stomp/groups_content");
                }
            });
 });

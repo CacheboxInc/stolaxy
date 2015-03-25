@@ -84,6 +84,7 @@ class User(object):
 
         session.add(user)
         session.commit()
+        return user
 
     @classmethod
     def record_login(cls, userid):
@@ -126,7 +127,7 @@ class User(object):
         '''
         if id is not None:
             return session.query(DBUser).filter(
-                       sqlalchemy.or_(DBUser.group_id.is_(None), DBUser.id == id), DBUser.role !='admin'
+                       sqlalchemy.or_(DBUser.group_id.is_(None), DBUser.group_id == id), DBUser.role !='admin'
                    )
         else:
             return session.query(DBUser).filter(DBUser.group_id.is_(None), DBUser.role != 'admin')

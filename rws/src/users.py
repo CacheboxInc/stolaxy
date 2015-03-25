@@ -31,27 +31,31 @@ class Users(object):
 
     applications = [
                 {'id': 1,
+                 'name': 'App-1',
                  'created': '2015-03-11 11:12:49',
                  'modified': '2015-03-13 17:12:49',
-                 'atype': 1,
+                 'atype': 'MAPREDUCE',
                  'astate': 'play' 
                 },
                 {'id': 2,
+                 'name': 'App-2',
                  'created': '2015-03-11 11:12:49',
                  'modified': '2015-03-13 17:12:49',
-                 'atype': 1,
+                 'atype': 'HIVE',
                  'astate': 'pause'
                 },
                 {'id': 3,
+                 'name': 'App-3',
                  'created': '2015-03-11 11:12:49',
                  'modified': '2015-03-13 17:12:49',
-                 'atype': 1,
+                 'atype': 'HIVE',
                  'astate': 'stop'
                 },
                 {'id': 4,
+                 'name': 'App-4',
                  'created': '2015-03-11 11:12:49',
                  'modified': '2015-03-13 17:12:49',
-                 'atype': 1,
+                 'atype': 'PIG',
                  'astate': 'stop'
                 },
             ]
@@ -79,13 +83,13 @@ class Users(object):
         return {'users': users}
 
     def create(self, **data):
-        User.create_or_get(**data)
+        return User.create_or_get(**data)
 
     def delete(self, user_id):
-        User.delete(user_id)
+        return User.delete(user_id)
 
     def update(self, **data):
-        User.update(**data)
+        return User.update(**data)
 
     @cherrypy.tools.json_in()
     @authAdminRequestHandler
@@ -117,29 +121,28 @@ class Users(object):
                 data['password'] = enc_pwd
                 user = self.create(**data)
 
-                userobj = User.get(username)
+                userobj = user.to_dict()
 
                 #Send an email to user on successful creation.
                 template = env.get_template('email-content.html')
                 template_data = {}
-                template_data['fullname'] = userobj.fullname
-                template_data['email'] = userobj.email
+                template_data['fullname'] = userobj.get('fullname', None)
+                template_data['email'] = userobj.get('email', None)
                 template_data['password'] = temp_pwd
                 content = template.render(user=template_data)
                 try:
-                    send_email(content, userobj.email)
+                    send_email(content, userobj.get('email'))
                 except:
                     # We can't send email all the time in development.
                     # Let's skip for now
                     pass
 
-                msg = "User %s created successfully" % userobj.fullname,
+                msg = "User %s created successfully" % userobj.get('fullname', ''),
 
         elif op == 'delete':
             user_id = data.get('id')
-            userobj = User.get_by_id(user_id)
             self.delete(user_id)
-            msg = "User %s deleted successfully" % userobj.fullname,
+            msg = "User deleted successfully" 
         
         elif op == 'update':
             userid = int(data.get('id', 0))
@@ -159,30 +162,16 @@ class Users(object):
                         error = True
 
             if not error:
-                self.update(**data)
-                userobj = User.get_by_id(userid)
-                msg = "User %s updated successfully" % userobj.fullname,
+                user = self.update(**data)
+                userobj = user.to_dict()
+                msg = "User %s updated successfully" % userobj.get('fullname', ''),
 
-        resp['msg'] = msg
-        resp['error'] = error
-        if userobj is not False:
-            userobj.applications = self.applications
-            users = {}
-            users['id'] = userobj.id
-            users['fullname'] = userobj.fullname
-            users['username'] = userobj.username
-            users['email'] = userobj.email
-            users['firstlogin'] = str(userobj.firstlogin)
-            users['lastlogin'] = str(userobj.lastlogin)
-            users['created'] = str(userobj.created)
-            users['modified'] = str(userobj.modified)
-            users['group'] = userobj.group_id
-            users['login_count'] = userobj.login_count
-            users['online'] = userobj.online
-            users['role'] = userobj.role
-            users['applications'] = userobj.applications
-            resp['users'] = [users]
-        return resp
+
+        return {
+                'msg': msg,
+                'error': error,
+                'users': [userobj]
+        }
 
 conf = {
          '/': {

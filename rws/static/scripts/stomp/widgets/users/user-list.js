@@ -53,6 +53,13 @@ define("stomp/widgets/users/user-list", [
                        }
                    }).then(
                        function (response) {
+                           new userContent({
+                                        'node': 'users',
+                                        'roles': widget.roles,
+                                        'opr': 'show-all',
+                                        'users': response.users,
+                                        'pos': 'only'
+                           });
                            dojo.forEach(response.users, function (user, index) {
                                new rowUser({
                                            'user': user,
@@ -160,6 +167,14 @@ define("stomp/widgets/users/user-list", [
                                         'opr': 'show-all',
                                         'users': response.users,
                                         'pos': 'only'
+                           });
+                           dojo.forEach(response.users, function (user, index) {
+                               new rowUserContent({
+                                           'user': user,
+                                           'node': 'ulist_body',
+                                           'pos': 'last',
+                                           'roles': roles
+                               });
                            });
                        },
                        function (error) {
