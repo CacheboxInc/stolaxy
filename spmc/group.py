@@ -36,7 +36,10 @@ class Group(object):
         name = args.get('name', None)
         try:
             query = session.query(DBGroup)
-            group = query.filter(DBGroup.name == name, DBGroup.id!=id).one()
+            group = query.filter(
+                            sqlalchemy.and_(
+                              DBGroup.name == name, DBGroup.id!=id)
+                            ).one()
         except sqlalchemy.orm.exc.NoResultFound:
             group = False
         return group
