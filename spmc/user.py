@@ -127,10 +127,16 @@ class User(object):
         '''
         if id is not None:
             return session.query(DBUser).filter(
-                       sqlalchemy.or_(DBUser.group_id.is_(None), DBUser.group_id == id), DBUser.role !='admin'
+                       sqlalchemy.and_(
+                         sqlalchemy.or_(DBUser.group_id == None, DBUser.group_id == id), 
+                         DBUser.role !='admin'
+                       )
                    )
         else:
-            return session.query(DBUser).filter(DBUser.group_id.is_(None), DBUser.role != 'admin')
+            return session.query(DBUser).filter(
+                        sqlalchemy.and_(
+                          DBUser.group_id == None, DBUser.role != 'admin')
+                        )
 
 
 
