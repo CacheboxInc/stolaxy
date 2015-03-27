@@ -47,6 +47,7 @@ class Configuration(object):
                 created = now,
                 modified = now,
                 username = 'administrator',
+                fullname = 'Admin User',
                 password = pwd,
                 email = 'admin@stomp.com',
                 role = 'admin',

@@ -6,6 +6,7 @@ from src import application
 from src import groups
 from src import users
 from src import storage
+from src import profile
 
 import os
 
@@ -49,3 +50,4 @@ cherrypy.tree.mount(application.app)
 cherrypy.tree.mount(groups.app)
 cherrypy.tree.mount(users.app)
 cherrypy.tree.mount(storage.app)
+cherrypy.tree.mount(profile.app)

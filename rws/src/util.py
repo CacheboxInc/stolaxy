@@ -112,3 +112,18 @@ def check_password(raw_password, encrypted_pwd):
     salt, hsh = encrypted_pwd.split('$')
     hsh_raw = hashlib.sha1(salt.encode('utf-8') + raw_password.encode('utf-8')).hexdigest()
     return hsh == hsh_raw
+
+def forgot_password_sha(email, id):
+    """
+    Method to generate password reset sha 
+
+    """
+    import random
+    import hashlib
+
+    rand1 = str(random.random()).encode('utf-8')
+    rand2 = str(random.random()).encode('utf-8')
+    sha  = hashlib.sha1(rand1 + rand2).hexdigest()
+    hsh = '%s$%s' % (sha, id)
+    return hsh
+

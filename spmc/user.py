@@ -75,7 +75,6 @@ class User(object):
             user = cls.get_by_id(args.get('id', None))
         except sqlalchemy.orm.exc.NoResultFound:
             raise Exception("No user with given info exists.")
-
         user.role = args.get('role', user.role)
         user.email = args.get('email', user.email)
         user.username = args.get('username', user.username)
@@ -113,6 +112,64 @@ class User(object):
         user.online = 0
         session.add(user)
         session.commit()
+
+    @classmethod
+    def change_password(cls, **data):
+        '''
+        This method can be used to update the user password and
+        reset the user's password request history from database.
+        '''
+        try:
+            user = cls.get_by_id(data.get('id', None))
+        except sqlalchemy.orm.exc.NoResultFound:
+            raise Exception("No user with given info exists.")
+        user.password = data.get('password', user.password)
+        user.reset_password = 0
+        session.add(user)
+        session.commit()
+        cls.reset_password_request(data.get('id', None))
+        return user
+
+    @classmethod
+    def reset_password_request(cls, userid):
+        '''
+        This method will delete user's password request history
+        from database.
+        '''
+        try:
+            query = session.query(DBPasswordRequest)
+            pr = query.filter(DBPasswordRequest.userid == userid).one()
+        except sqlalchemy.orm.exc.NoResultFound:
+            pr = False
+        if pr:
+            session.delete(pr)
+            session.commit()
+
+    @classmethod
+    def get_password_request_by_sha(cls, sha):
+        try:
+            query = session.query(DBPasswordRequest)
+            pr = query.filter(DBPasswordRequest.reset_sha == sha).one()
+        except sqlalchemy.orm.exc.NoResultFound:
+            pr = False 
+        return pr
+
+    @classmethod
+    def create_or_get_password_request(cls, **data):
+        try:
+            query = session.query(DBPasswordRequest)
+            pr = query.filter(DBPasswordRequest.userid == data.get('id', None)).one()
+            pr.reset_sha = data.get('sha')
+        except sqlalchemy.orm.exc.NoResultFound:
+            now = datetime.datetime.now()
+            pr = DBPasswordRequest(
+                created = now,
+                userid = data.get('id'),
+                reset_sha = data.get('sha')
+            )
+        session.add(pr)
+        session.commit()
+        return pr
 
     @classmethod
     def listing(cls):

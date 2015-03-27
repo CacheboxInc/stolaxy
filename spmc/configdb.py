@@ -90,6 +90,7 @@ class DBUser(Base):
     lastlogin = Column(DateTime, nullable=True)
     login_count = Column(Integer, default=0)
     online = Column(SmallInteger, default=0)
+    reset_password = Column(SmallInteger, default=1)
 
     def to_dict(self):
         if self.group_id:
@@ -354,6 +355,28 @@ application_id %s
             self.backing_volume,
             self.application_id
             )
+
+class DBPasswordRequest(Base):
+    __tablename__ = 'password_change_request'
+    id = Column(Integer, primary_key=True)
+    created = Column(DateTime, nullable=False)
+    reset_sha = Column(String)
+    userid = Column(Integer, ForeignKey('user.id'))
+
+    def __repr__():
+        return """
+DBPasswordRequest:
+id %s
+created %s
+reset_sha %s
+userid %s
+""" % (
+            self.id,
+            self.created,
+            seld.reset_sha,
+            self.userid
+            )
+
 
 engine = create_engine(CONFIG_DB, connect_args={'check_same_thread': False})
  
