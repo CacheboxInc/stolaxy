@@ -3,6 +3,8 @@ define("stomp/widgets/groups/group-opr", [
     "dojo/text!./group-add.html",
     "dojo/text!./group-modify.html",
     "dojo/text!./group-delete.html",
+    "dojo/text!./group-remove-user.html",
+    "dojo/text!./group-update-user.html",
     "dijit/_WidgetBase",
     "dojox/dtl/_Templated",
     "dojox/dtl",
@@ -19,6 +21,8 @@ define("stomp/widgets/groups/group-opr", [
        template_add,
        template_modify,
        template_delete,
+       template_remove,
+       template_modifyusergroup,
        WidgetBase,
        TemplatedMixin,
        dtl,
@@ -158,6 +162,80 @@ define("stomp/widgets/groups/group-opr", [
                            });
                        });
                },
+               removeUserFromGroup: function () {
+                   var widget = this;
+                   var users = widget.users;
+                   var userids = widget.userids;
+
+                   util.start_load("Please wait while we remove user from group");
+                   var data = {
+                       'id': users[0].group.id,
+                       'users': userids
+                   };
+
+                   xhr('/group/removeuser', {
+                       'handleAs': 'json',
+                       'method': 'POST',
+                       'headers': {
+                                   'Content-Type': "application/json; charset=utf-8"
+                       },
+                       'query': {
+                       },
+                       data: dojo.toJson(data)
+                   }).then(
+                       function (response) {
+                           util.stop_load();
+                           topic.publish("/stomp/groups_content", response);
+                           $('#group_opr').trigger('close');
+                       },
+                       function (error) {
+                           util.stop_load();
+                           new msgbox({
+                               'id': 'dialog',
+                               'msg': error.response.data.msg
+                           });
+                       });
+               },
+               updateUserGroup: function() {
+                   var widget = this;
+                   var checkbox = dojo.query("#group_users_list input[type=checkbox]:checked");
+                   var users = array.map(checkbox, function (checked) {
+                             return checked.value;
+                   });
+
+                   var group_id = $('input[name=group_id]:checked', '#user_groups_list').val();
+
+                   var data = {
+                       'users': users,
+                       'id': group_id
+                   };
+
+
+                   util.start_load("Please wait while we update the user's group");
+                   xhr('/group/addusertogroup', {
+                       'handleAs': 'json',
+                       'method': 'POST',
+                       'headers': {
+                                   'Content-Type': "application/json; charset=utf-8"
+                       },
+                       'query': {
+                       },
+                       data: dojo.toJson(data)
+                   }).then(
+                       function (response) {
+                           util.stop_load();
+                           topic.publish("/stomp/groups_content", response);
+                           if (!response.error)
+                               $('#group_opr').trigger('close');
+                       },
+                       function (error) {
+                           util.stop_load();
+                           new msgbox({
+                               'id': 'dialog',
+                               'msg': error.response.data.msg
+                           });
+                       });
+               },
                onclose: function () {
                    $('#group_opr').trigger('close');
                },
@@ -169,6 +247,10 @@ define("stomp/widgets/groups/group-opr", [
                        widget.templateString = template_modify;
                    } else if (widget.opr == 'delete'){
                        widget.templateString = template_delete;
+                   } else if (widget.opr == 'removeUser'){
+                       widget.templateString = template_remove;
+                   } else if (widget.opr == 'updateUserGroup'){
+                       widget.templateString = template_modifyusergroup;
                    }
                },
                postCreate: function () {

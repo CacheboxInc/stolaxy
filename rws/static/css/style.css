@@ -961,3 +961,23 @@ li.accelerated {
 #group_users .table>tbody>tr>td {
     text-align: left;
 }
+
+.popover {
+    width: auto;
+    display: block !important;
+    max-width: 400px !important;
+}
+
+table.table-user-tooltip>tbody>tr>td {
+    border: 0px;
+    padding: 2px 8px;
+}
+
+table.table-group-tooltip>tbody>tr>td {
+    border: 0px;
+    padding: 2px 8px;
+}
+
+#group-content .node {
+    stroke-width: 2px;
+}

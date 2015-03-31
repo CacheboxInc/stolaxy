@@ -31,7 +31,7 @@ define("stomp/widgets/groups/group-content", [
        array,
        msgbox,
        util,
-       rowOpr
+       oprGroup
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -51,8 +51,29 @@ define("stomp/widgets/groups/group-content", [
                        widget.templateString = templateUserListing;
                    }
                },
+               initUserSelected: function() {
+                   var widget = this;
+                   if ('undefined' !== typeof widget.userSelected) {
+                       $.each(widget.userSelected, function(k, v){
+                           var n = v[0];
+                           d3.select(n[0]).style("stroke", "");
+                       });
+                   }
+                   widget.userSelected = [];
+               },
+               initGroupSelected: function() {
+                   var widget = this;
+                   if ('undefined' !== typeof widget.groupSelected) {
+                       if (widget.groupSelected) {
+                           widget.groupSelected.style("stroke", "");
+                       }
+                   }
+                   widget.groupSelected = false;
+               },
                initialize: function() {
                    var widget = this;
+                   widget.initGroupSelected();
+                   widget.initUserSelected();
                    widget.contentWidth  = 900;
                    widget.contentHeight = 500;
                    widget.color = d3.scale.category20();
@@ -60,7 +81,8 @@ define("stomp/widgets/groups/group-content", [
                    widget.svg = d3.select("#group-content")
                                          .append("svg")
                                          .attr("width", widget.contentWidth)
-                                         .attr("height", widget.contentHeight);
+                                         .attr("height", widget.contentHeight)
+                                         .style("border-left", "1px solid #ccc");
                    widget.force = d3.layout.force()
                                            .charge(-400)
                                            .size([widget.contentWidth, widget.contentHeight])
@@ -115,6 +137,7 @@ define("stomp/widgets/groups/group-content", [
                    widget.showSymbols();
                    widget.force.nodes(json.nodes);
                    widget.force.links(json.links);
+                   widget.force.start();
                    var link = widget.svg.selectAll(".link")
                                         .data(json.links)
                                         .enter()
@@ -128,6 +151,7 @@ define("stomp/widgets/groups/group-content", [
                                         .data(json.nodes)
                                         .enter()
                                         .append("g")
+                                        .attr("class", "node")
                                         .each(function(d){
                                             d3.select(this).append("circle")
                                                            .attr("r", function(d) {
@@ -144,7 +168,35 @@ define("stomp/widgets/groups/group-content", [
                                                                    return widget.color(widget.symbol.user);
                                                                }
                                                            });
-                                            d3.select(this).on("click", function(){console.log('clicked'); });
+                                            d3.select(this).on("click", function(d){
+                                                             if (widget.groupSelected) {
+                                                                 widget.initGroupSelected();
+                                                             }
+                                                             if (d.hasOwnProperty("users")) {
+                                                                 widget.initUserSelected();
+                                                                 widget.groupSelected = d3.select(this)
+                                                                                          .style("stroke", "#000")
+                                                             } else {
+                                                                 //Allow selection of multiple users from one group only.
+                                                                 if (widget.userSelected.length > 0) {
+                                                                     var nodedata = widget.getNodeData(widget.userSelected[0]);
+                                                                     if (nodedata.group.id != d.group.id) {
+                                                                         widget.initUserSelected();
+                                                                     }
+                                                                 }
+                                                                 widget.initGroupSelected();
+                                                                 if (!widget.containsNode(d))
+                                                                     widget.userSelected.push( d3.select(this)
+                                                                                                 .style("stroke", "#000") );
+                                                             }
+                                                         });
+                                            d3.select(this).on("dblclick", function(d){
+                                                               if ( d.hasOwnProperty("users") ){
+                                                                   widget.initGroupSelected();
+                                                               } else {
+                                                                   widget.userSelected.pop(d3.select(this).style("stroke", ""));
+                                                               }
+                                            });
                                             d3.select(this).append("text")
                                                            .attr("dy", ".35em")
                                                            .attr("text-anchor", "middle")
@@ -156,9 +208,21 @@ define("stomp/widgets/groups/group-content", [
                                                                }
                                                            });
                                             d3.select(this).call(widget.force.drag)
+                                            d3.select(this).attr("title", function(d){
+                                                               if ( d.hasOwnProperty("users") ) {
+                                                                   return d.name;
+                                                               } else {
+                                                                   return d.fullname;
+                                                               }
+                                            });
+                                            d3.select(this).attr("data-content", function(d){
+                                                               if ( d.hasOwnProperty("users") ) {
+                                                                   return widget.showGroupContent(d);
+                                                               } else {
+                                                                   return widget.showUserContent(d);
+                                                               }
+                                            });
                                         });
-
-                   widget.force.start();
                    widget.force.on("tick", function() {
                        link.selectAll("line")
                            .attr("x1", function(d) { return d.source.x; })
@@ -167,13 +231,22 @@ define("stomp/widgets/groups/group-content", [
                            .attr("y2", function(d) { return d.target.y; });
                        node.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
                    });
+
+                   //Init the popover
+                   $('svg g').popover({
+                       'trigger':'hover',
+                       'container': 'body',
+                       'placement': 'top',
+                       'white-space': 'nowrap',
+                       'html':'true'
+                   });
                },
                showSymbols: function() {
                    var widget = this;
                    var svg = d3.select("#symbols")
                                         .append("svg")
-                                        .attr("width", 100)
-                                        .attr("height", 200)
+                                        .attr("width", 50)
+                                        .attr("height", 150)
                    svg.append("g")
                       .attr("transform", "translate(25,25)")
                       .append("circle")
@@ -194,9 +267,124 @@ define("stomp/widgets/groups/group-content", [
                       .attr("dy", "10.5em")
                       .text("User");
                },
+               removeUser: function() {
+                   var widget = this;
+                   if (widget.userSelected.length > 0) {
+                       var users = [];
+                       var userids= [];
+                       $.each(widget.userSelected, function(k, v){
+                           users.push(widget.getNodeData(v));
+                           userids.push(widget.getNodeData(v).id);
+                       });
+                       var user = widget.getNodeData(widget.userSelected);
+                       new oprGroup({'id': 'dialog',
+                                     'opr': 'removeUser',
+                                     'users': users,
+                                     'userids': userids
+                                   });
+                   } else {
+                       var title = '<h3>Error</h3>';
+                       var body = '<p>No user is selected to remove.</p>';
+                       topic.publish("/stomp/info", title + body);
+                   }
+               },
+               deleteGroup: function() {
+                   var widget = this;
+                   if ($.isEmptyObject(widget.groupSelected)) {
+                       var title = '<h3>Error</h3>';
+                       var body = '<p>No group is selected to delete.</p>';
+                       topic.publish("/stomp/info", title + body);
+                   } else {
+                       var group = widget.getNodeData(widget.groupSelected);
+                       new oprGroup({'id': 'dialog',
+                                     'opr': 'delete',
+                                     'group': group
+                                   });
+                   }
+               },
+               updateUserGroup: function() {
+                   var widget = this;
+                   if (widget.userSelected.length > 0) {
+                       var users = [];
+                       $.each(widget.userSelected, function(k, v){
+                           users.push(widget.getNodeData(v));
+                       });
+                       xhr('/group/list', {
+                           'handleAs': 'json',
+                           'method': 'GET',
+                           'query': {
+                           }
+                       }).then(
+                           function (response) {
+                               var groups = [];
+                               $.each(response.groups, function (k, v){
+                                   if (v.id != users[0].group.id) { 
+                                       groups.push(v);
+                                   }
+                               });
+                               new oprGroup({'id': 'dialog',
+                                             'groups': groups,
+                                             'opr': 'updateUserGroup',
+                                             'users': users
+                                            });
+                       },
+                       function (error) {
+                               console.error(error.response.data.msg);
+                       });
+                   } else {
+                       var title = '<h3>Error</h3>';
+                       var body = '<p>No user is selected to update.</p>';
+                       topic.publish("/stomp/info", title + body);
+                   }
+               },
                showAllGroups: function() {
                    var widget = this;
                    topic.publish("/stomp/groups_content");
+               },
+               getNodeData: function(node) {
+                   return node[0][0].__data__;
+               },
+               showGroupContent: function(d) {
+                   var str  = '';
+                       str += '<table class="table table-group-tooltip">';
+                       str += '<tbody>';
+                       str += '<tr>';
+                       str += '<td><strong>Created On:</td>';
+                       str += '<td>'+d.created+'</td>';
+                       str += '</tr>';
+                       str += '</tbody>';
+                       str += '</table>';
+                       return str;
+               },
+               showUserContent: function(d) {
+                   onlinestatus = '<i class="fa fa-times-circle fa-1x"></i>';
+                   if (d.online)
+                       onlinestatus = '<i class="fa fa-check-circle fa-1x"></i>';
+                   var str  = '';
+                       str += '<table class="table table-user-tooltip">';
+                       str += '<tbody>';
+                       str += '<tr>';
+                       str += '<td><strong>Email:</td>';
+                       str += '<td>'+d.email+'</td>';
+                       str += '</tr>';
+                       str += '<tr>';
+                       str += '<td><strong>Online:</td>';
+                       str += '<td>'+onlinestatus+'</td>';
+                       str += '</tr>';
+                       str += '</tbody>';
+                       str += '</table>';
+                       return str;
+               },
+               containsNode: function(obj) {
+                   var widget = this;
+                   var i, userSelected = widget.userSelected;
+                   for (i = 0; i < userSelected.length; i++) {
+                       var nodedata = widget.getNodeData(userSelected[i]);
+                       if (nodedata == obj) {
+                           return true;
+                       }
+                   }
+                   return false;
                }
            });
 });

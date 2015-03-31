@@ -50,6 +50,12 @@ class Groups(object):
     def delete(self, group_id):
         return Group.delete(group_id)
 
+    def removeUserFromGroup(self, group_id, user_id):
+        return Group.removeUserFromGroup(group_id, user_id)
+
+    def addUserToGroup(self, group_id, users):
+        return Group.addUserToGroup(group_id, users)
+
     @cherrypy.tools.json_in()
     @authAdminRequestHandler
     def POST(self, op):
@@ -88,7 +94,22 @@ class Groups(object):
             id = data.get('id', None)
             self.delete(id)
             msg = "Group successfully deleted" 
-
+        elif op == 'removeuser':
+            '''
+            Delete user from group
+            '''
+            gid = data.get('id', None)
+            users = data.get('users', None)
+            self.removeUserFromGroup(gid, users)
+            msg = "User successfully deleted from group"
+        elif op == 'addusertogroup':
+            '''
+            Add user to group
+            '''
+            gid = data.get('id', None)
+            users = data.get('users', None)
+            self.addUserToGroup(gid, users)
+            msg = "User successfully deleted from group"
         return {
                 'msg': msg,
                 'error': error,

@@ -8,9 +8,14 @@
                 <div class="panel">
                     <div class="panel-heading">
                         <h3 class="panel-title pull-left">Groups</h3>
+                        <div class="pull-right">
+                          <button type="button" class="btn btn-danger" data-dojo-attach-event="onclick:removeUser">Remove Selected User</button>
+                          <button type="button" class="btn btn-danger" >Delete Selected Group</button>
+                          <button type="button" class="btn btn-warning" data-dojo-attach-event="onclick:updateUserGroup">Update Selected User's Group</button>
+                        </div>
                         <div class="clearfix"></div>
                     </div>
-                    <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:500px;">
+                    <div class="panel-body" style="padding-bottom:0px;padding-top:0px;height:500px;">
                         <div id="symbols" class="pull-left"></div>
                         <!-- Show groups here using d3 lib-->
                         <div id="group-content">

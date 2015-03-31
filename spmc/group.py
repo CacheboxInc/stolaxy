@@ -76,6 +76,40 @@ class Group(object):
         session.commit()
 
     @classmethod
+    def removeUserFromGroup(cls, group_id, users):
+        try:
+            group = cls.get_by_id(group_id)
+        except sqlalchemy.orm.exc.NoResultFound:
+            raise Exception('No group with given ID exists.')
+
+        try:
+            for uid in users:
+                u = user.User.get_by_id(uid)
+                group.users.remove(u)
+        except sqlalchemy.orm.exc.NoResultFound:
+            raise Exception('No user with given ID exists.')
+
+        session.add(group)
+        session.commit()
+
+    @classmethod
+    def addUserToGroup(cls, group_id, users):
+        try:
+            group = cls.get_by_id(group_id)
+        except sqlalchemy.orm.exc.NoResultFound:
+            raise Exception("No group with given info exists.")
+        now = datetime.datetime.now()
+        group.modified = now
+        for u in users:
+            usr = user.User.get_by_id(u)
+            if usr:
+                group.users.append(usr)
+
+        session.add(group)
+        session.commit()
+        return group
+
+    @classmethod
     def update(cls, **args):
         try:
             group = cls.get_by_id(args.get('id', None))
