@@ -970,12 +970,12 @@ li.accelerated {
 
 table.table-user-tooltip>tbody>tr>td {
     border: 0px;
-    padding: 2px 8px;
+    padding: 2px 8px 2px 0;
 }
 
 table.table-group-tooltip>tbody>tr>td {
     border: 0px;
-    padding: 2px 8px;
+    padding: 2px 8px 2px 0;
 }
 
 #group-content .node {

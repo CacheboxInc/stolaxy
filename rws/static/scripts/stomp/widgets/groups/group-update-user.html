@@ -1,0 +1,39 @@
+﻿<!-- CONTENT -->
+{% if stats %}
+{% endif %}
+<div>
+    <div id="group_opr" class="popup" style="text-align:initial;">
+        <h2>Update User's group </h2>
+        <div class="popup_body">
+            <div>
+                <div class="col-md-12" style="margin-top:10px;">
+                    <span class="col-md-5">
+                      Add user(s) to group:
+                    </span>
+                    <div class="col-md-6 panel" style="clear:none;">
+                        <form style="height:60px; overflow-y:auto;" id="user_groups_list">
+                          {% for group in groups %}
+                            <div>  
+                              <input type="radio" name="group_id" value="{{group.id}}" ></input>
+                              <span>{{group.name}}</span>
+                            </div>
+                          {% endfor %}
+                          <div id="group_users_list" style="display:none;">
+                            {% for user in users %}
+                              <input type="checkbox" id="{{user.id}}" value={{user.id}} checked="checked"></input>
+                            {% endfor %}
+                          </div>
+                       </form>
+                   </div>
+                </div>
+                <div class="clearfix"></div>
+            </div>
+        </div>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="addbtn" type="button" value="Add" data-dojo-attach-event="onclick:updateUserGroup">Update</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->

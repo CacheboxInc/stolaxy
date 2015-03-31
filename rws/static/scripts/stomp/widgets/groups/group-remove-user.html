@@ -1,0 +1,19 @@
+﻿<!-- CONTENT -->
+{% if stats %}
+{% endif %}
+<div>
+    <div id="group_opr" class="popup" style="text-align:initial;">
+        <h2 style="border:none;">Are you sure you want to remove following user(s) from {{users.0.group.name}} ? </h2>
+            <ul>
+            {% for user in users %}
+                <li>{{user.fullname}}</li>
+            {% endfor %}
+            </ul>
+        <div class="clearfix"></div>
+        <div class="popup_btn">
+            <button class="btn btn-primary" id="delbtn" type="button" value="delete" data-dojo-attach-event="onclick:removeUserFromGroup">Remove</button>
+            <button class="btn" type="button" value="Cancel" data-dojo-attach-event="onclick:onclose">Cancel</button>
+        </div>
+    </div>
+<div>
+<!--END CONTENT -->

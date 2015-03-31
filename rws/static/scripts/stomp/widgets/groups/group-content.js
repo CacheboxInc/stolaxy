@@ -185,18 +185,15 @@ define("stomp/widgets/groups/group-content", [
                                                                      }
                                                                  }
                                                                  widget.initGroupSelected();
-                                                                 if (!widget.containsNode(d))
+                                                                 if (!widget.containsNode(d)) {
                                                                      widget.userSelected.push( d3.select(this)
                                                                                                  .style("stroke", "#000") );
+                                                                 } else {
+                                                                     d3.select(this).style("stroke", "");
+                                                                     widget.removeUserOnClick(d);
+                                                                 }
                                                              }
                                                          });
-                                            d3.select(this).on("dblclick", function(d){
-                                                               if ( d.hasOwnProperty("users") ){
-                                                                   widget.initGroupSelected();
-                                                               } else {
-                                                                   widget.userSelected.pop(d3.select(this).style("stroke", ""));
-                                                               }
-                                            });
                                             d3.select(this).append("text")
                                                            .attr("dy", ".35em")
                                                            .attr("text-anchor", "middle")
@@ -350,7 +347,7 @@ define("stomp/widgets/groups/group-content", [
                        str += '<tbody>';
                        str += '<tr>';
                        str += '<td><strong>Created On:</td>';
-                       str += '<td>'+d.created+'</td>';
+                       str += '<td>'+util.format_datetime(d.created)+'</td>';
                        str += '</tr>';
                        str += '</tbody>';
                        str += '</table>';
@@ -385,6 +382,12 @@ define("stomp/widgets/groups/group-content", [
                        }
                    }
                    return false;
+               },
+               removeUserOnClick: function(d) {
+                   var widget = this;
+                   widget.userSelected = $.grep(widget.userSelected, function(v, k){
+                       return widget.getNodeData(v) != d;
+                   });
                }
            });
 });

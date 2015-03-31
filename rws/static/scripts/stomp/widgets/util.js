@@ -69,7 +69,19 @@ define("stomp/widgets/util", function() {
                // Do not allow spaces.
                var pattern = /^[a-z0-9]+$/;
                return pattern.test(data);
+           },
+           format_datetime: function(time) {
+               var date = new Date(time);
+               var months = [
+                   "January", "February", "March",
+                   "April", "May", "June",
+                   "July", "August", "September",
+                   "October", "November", "December"
+               ];
+               var day = date.getDate();
+               var month = months[date.getMonth()];
+               var year = date.getFullYear();
+               return day + " " + month + ", " + year;
            }
-
        };
 });
