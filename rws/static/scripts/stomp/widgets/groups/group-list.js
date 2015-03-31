@@ -14,6 +14,7 @@ define("stomp/widgets/groups/group-list", [
     "stomp/widgets/util",
     "stomp/widgets/groups/group-opr",
     "stomp/widgets/groups/group-row",
+    "stomp/widgets/groups/group-content",
 ], function (
        declare,
        template,
@@ -29,7 +30,8 @@ define("stomp/widgets/groups/group-list", [
        msgbox,
        util,
        oprGroup,
-       rowGroup
+       rowGroup,
+       groupContent
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -38,6 +40,7 @@ define("stomp/widgets/groups/group-list", [
                    topic.subscribe("/stomp/group_create", lang.hitch(widget, 'groupCreate'));
                    topic.subscribe("/stomp/group_change", lang.hitch(widget, 'groupChange'));
                    topic.subscribe("/stomp/group_delete", lang.hitch(widget, 'groupDelete'));
+                   topic.subscribe("/stomp/groups_content", lang.hitch(widget, 'groupsContent'));
                    widget.placeAt(this.node);
                    widget.template = new dtl.Template(widget.templateString);
                    
@@ -62,7 +65,7 @@ define("stomp/widgets/groups/group-list", [
                },
                onCreate : function () {
                    var widget = this;
-                   xhr('/user/list', {
+                   xhr('/user/nongrouplist', {
                        'handleAs': 'json',
                        'method': 'GET',
                        'query': {
@@ -74,6 +77,14 @@ define("stomp/widgets/groups/group-list", [
                                          'users': users,
                                          'opr': 'create'
                                         });
+
+                           if ( users.length > 0 ) {
+                               $("#user-list-in-group").css('display', 'block');
+                               $("#user-list-warning").css('display', 'none');
+                           } else {
+                               $("#user-list-warning").css('display', 'block');
+                               $("#user-list-in-group").css('display', 'none');
+                           }
                        },
                        function (error) {
                                console.error(error.response.data.msg);
@@ -164,34 +175,81 @@ define("stomp/widgets/groups/group-list", [
                        });
                },
                groupCreate : function(data) {
-                   var title = '<h3>Succussfully created</h3>';
+                   if (data.error)
+                       var title = '<h3>Error</h3>';
+                   else
+                       var title = '<h3>Succussfully created</h3>';
+
                    var body = '<p>' + data.msg + '</p>';
                    topic.publish("/stomp/info", title + body);
-                   dojo.forEach(data.groups, function (group, index) {
-                          new rowGroup({
+                   if (!data.error) {
+                       new groupContent({
+                                     'opr': 'resetContainer',
+                                     'node': 'groups',
+                                     'pos': 'only'
+                                  });
+                       dojo.forEach(data.groups, function (group, index) {
+                           new rowGroup({
                                         'group': group,
                                         'node': 'group_list',
                                         'pos': 'last'
-                                      }); 
-                   });
+                                      });
+                       });
+                   }
                },
                groupChange : function(data) {
-                   var title = '<h3>Succussfully updated</h3>';
+                   if (data.error)
+                       var title = '<h3>Error</h3>';
+                   else
+                       var title = '<h3>Succussfully updated</h3>';
+
                    var body = '<p>' + data.msg + '</p>';
                    topic.publish("/stomp/info", title + body);
-                   dojo.forEach(data.groups, function (group, index) {
-                          new rowGroup({
+                   if (!data.error) {
+                       new groupContent({
+                                     'opr': 'resetContainer',
+                                     'node': 'groups',
+                                     'pos': 'only'
+                                  });
+                       dojo.forEach(data.groups, function (group, index) {
+                           new rowGroup({
                                         'group': group,
                                         'node': group.id + '_group_row',
                                         'pos': 'replace'
                                       }); 
-                   });
+                       });
+                   }
                },
                groupDelete : function(response, group) {
                    var title = '<h3>Succussfully deleted</h3>';
                    var body = '<p>' + response.msg + '</p>';
                    topic.publish("/stomp/info", title + body);
+                   new groupContent({
+                                 'opr': 'resetContainer',
+                                 'node': 'groups',
+                                 'pos': 'only'
+                              });
                    dc.destroy(group.id + "_group_row");
+               },
+               groupsContent: function() {
+                   var widget = this;
+                   xhr('/group/list', {
+                       'handleAs': 'json',
+                       'method': 'GET',
+                       'query': {
+                       }
+                   }).then(
+                       function (response) {
+                           new groupContent({
+                                        'node': 'groups',
+                                        'pos': 'only',
+                                        'groups': response.groups,
+                                        'opr': 'resetContainer'
+                           });
+                       },
+                       function (error) {
+                               console.error(error.response.data.msg);
+                       });
                }
            });
 });

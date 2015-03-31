@@ -13,6 +13,7 @@ define("stomp/widgets/users/user-row", [
     "stomp/widgets/msgbox",
     "stomp/widgets/util",
     "stomp/widgets/users/user-opr",
+    "stomp/widgets/users/user-content"
 ], function (
        declare,
        template,
@@ -27,7 +28,8 @@ define("stomp/widgets/users/user-row", [
        array,
        msgbox,
        util,
-       oprUser
+       oprUser,
+       userContent
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -41,6 +43,7 @@ define("stomp/widgets/users/user-row", [
                    var widget = this;
                    var user = widget.user;
                    var user_group = user.group;
+                   var roles = JSON.parse(JSON.stringify(widget.roles));
 
                    xhr('/group/list', {
                        'handleAs': 'json',
@@ -53,11 +56,11 @@ define("stomp/widgets/users/user-row", [
                            new oprUser({'id': 'dialog',
                                          'groups': groups,
                                          'opr': 'modify',
-                                         'user': user
+                                         'user': user,
+                                         'roles': roles
                                         });
-                           dojo.forEach(user_group, function(group, index) {
-                               $("#" + group).attr("checked", true);
-                          });
+                           //Since we are allowing one group only for a user.
+                           $("#"+user_group.id).attr("checked", true);
                        },
                        function (error) {
                                console.error(error.response.data.msg);
@@ -70,6 +73,15 @@ define("stomp/widgets/users/user-row", [
                                 'opr': 'delete',
                                 'user': user
                                });
-               }
+               },
+               showUserProfile: function(evt) {
+                   var widget = this;
+                   new userContent({'opr': 'show-individual',
+                                    'user': widget.user,
+                                    'node': 'users',
+                                    'pos': 'only',
+                                    'roles': widget.roles
+                                  });
+               },
            });
 });

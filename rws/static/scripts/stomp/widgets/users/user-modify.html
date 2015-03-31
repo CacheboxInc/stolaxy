@@ -3,25 +3,57 @@
 {% endif %}
 <div>
     <div id="user_opr" class="popup" style="text-align:initial;">
-        <h2>Create a User </h2>
+        <h2>Update User {{user.username}} </h2>
         <div class="popup_body">
             <div>
                 <div class="col-md-12">
                   <span class="col-md-5">
-                    User name:
+                    Email*:
                   </span>
-                  <input type="text" id="user_name" class="col-md-6" style="width:262px;" value="{{user.name}}"></input>
+                  <input type="text" id="user_email" class="col-md-6" style="width:262px;" value="{{user.email}}"></input>
                   <input type="hidden" id="user_id" value="{{user.id}}"></input>
+                </div>
+
+                <div class="col-md-12" style="margin-top:10px;">
+                  <span class="col-md-5">
+                    Full name:
+                  </span>
+                  <input type="text" id="user_fullname" class="col-md-6" style="width:262px;" value="{{user.fullname}}"></input>
+                  <input type="hidden" id="user_id" value="{{user.id}}"></input>
+                </div>
+
+                <div class="col-md-12" style="margin-top:10px;">
+                  <span class="col-md-5">
+                    Username*:
+                  </span>
+                  <input type="text" id="user_name" class="col-md-6" style="width:262px;" value="{{user.username}}"></input>
+                  <input type="hidden" id="user_id" value="{{user.id}}"></input>
+                </div>
+
+                <div class="col-md-12" style="margin-top:10px;">
+                  <span class="col-md-5">
+                    Assign role to user*:
+                  </span>
+                  <div class="col-md-6 panel" style="clear:none; margin-bottom:0px;">
+                    <form style="height:60px; overflow-y:auto;" id="user_roles">
+                      {% for role in roles %}
+                        <div>
+                          <input type="radio" name="user_role" value="{{role}}" {% if role == user.role %}checked{%endif%} ></input>
+                          <span>{{role}}</span>
+                        </div>
+                      {% endfor %}
+                    </form>
+                  </div>
                 </div>
                 <div class="col-md-12" style="margin-top:10px;">
                   <span class="col-md-5">
                     Update user's group:
                   </span>
-                  <div class="col-md-5 panel" style="clear:none;">
+                  <div class="col-md-6 panel" style="clear:none;">
                       <form style="height:60px; overflow-y:auto;" id="user_groups">
                           {% for group in groups %}
                               <div>
-                                <input type="radio" id="{{group.id}}" value="{{group.id}}" name="selected_group"></input>
+                                <input type="radio" id="{{group.id}}" value="{{group.id}}" name="selected_group" ></input>
                                 <span>{{group.name}}</span>
                               </div>
                           {% endfor %}

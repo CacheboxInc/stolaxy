@@ -7,20 +7,47 @@
         <div class="popup_body">
             <div>
                 <div class="col-md-12">
-                  <span class="col-md-5">
-                    User name:
-                  </span>
-                  <input type="text" id="user_name" class="col-md-6" style="width:262px;"></input>
+                    <span class="col-md-5">
+                      Email*:
+                    </span>
+                    <input type="text" id="user_email" class="col-md-6" style="width:262px;" placeholder="Enter a Valid Email Address"></input>
+                </div>
+                <div class="col-md-12" style="margin-top:10px;">
+                    <span class="col-md-5">
+                      Full name:
+                    </span>
+                    <input type="text" id="user_fullname" class="col-md-6" style="width:262px;"></input>
+                </div>
+                <div class="col-md-12" style="margin-top:10px;">
+                    <span class="col-md-5">
+                      Username*:
+                    </span>
+                    <input type="text" id="user_name" class="col-md-6" style="width:262px;"></input>
                 </div>
                 <div class="col-md-12" style="margin-top:10px;">
                   <span class="col-md-5">
-                    Add users to group:
+                    Assign role to user*:
                   </span>
-                  <div class="col-md-5 panel" style="clear:none;">
-                      <form style="height:60px; overflow-y:auto;" id="user_groups">
+                  <div class="col-md-6 panel" style="clear:none; margin-bottom:0px;">
+                    <form style="height:60px; overflow-y:auto;" id="user_roles">
+                      {% for role in roles %}
+                        <div>
+                          <input type="radio" name="user_role" value="{{role}}" {% if role=='user' %}checked{%endif%} ></input>
+                          <span>{{role}}</span>
+                        </div>
+                      {% endfor %}
+                    </form>
+                  </div>
+                </div>
+                <div class="col-md-12" style="margin-top:10px;">
+                    <span class="col-md-5">
+                      Add user to group:
+                    </span>
+                    <div class="col-md-6 panel" style="clear:none;">
+                        <form style="height:60px; overflow-y:auto;" id="user_groups">
                           {% for group in groups %}
                               <div>
-                                <input type="radio" name="selected_group" value="{{group.id}}"></input>
+                                <input type="radio" name="selected_group" value="{{group.id}}" ></input>
                                 <span>{{group.name}}</span>
                               </div>
                           {% endfor %}

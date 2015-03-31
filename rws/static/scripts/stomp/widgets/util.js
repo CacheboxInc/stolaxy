@@ -59,7 +59,29 @@ define("stomp/widgets/util", function() {
                var str = "^" + reg + "\\." + reg + "\\." + reg + "\\." + reg + "$";
                var pattern =  new RegExp(str);
                return pattern.test(data);
+           },
+           is_valid_email: function(data) {
+               var pattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+               return pattern.test(data);
+           },
+           is_valid_username: function(data) {
+               // Allow small characters only.
+               // Do not allow spaces.
+               var pattern = /^[a-z0-9]+$/;
+               return pattern.test(data);
+           },
+           format_datetime: function(time) {
+               var date = new Date(time);
+               var months = [
+                   "January", "February", "March",
+                   "April", "May", "June",
+                   "July", "August", "September",
+                   "October", "November", "December"
+               ];
+               var day = date.getDate();
+               var month = months[date.getMonth()];
+               var year = date.getFullYear();
+               return day + " " + month + ", " + year;
            }
-
        };
 });

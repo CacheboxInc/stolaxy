@@ -13,6 +13,7 @@ define("stomp/widgets/groups/group-row", [
     "stomp/widgets/msgbox",
     "stomp/widgets/util",
     "stomp/widgets/groups/group-opr",
+    "stomp/widgets/groups/group-content"
 ], function (
        declare,
        template,
@@ -27,7 +28,8 @@ define("stomp/widgets/groups/group-row", [
        array,
        msgbox,
        util,
-       oprGroup
+       oprGroup,
+       groupContent
        ) {
            return declare([WidgetBase, TemplatedMixin], {
                templateString : template,
@@ -42,9 +44,9 @@ define("stomp/widgets/groups/group-row", [
                    var group = widget.group;
                    var group_id = widget.group.id;
                    var group_name = widget.group.name;
-                   var group_users = widget.group.users.split(",");
+                   var group_users = widget.group.users;
 
-                   xhr('/user/list', {
+                   xhr('/user/nongrouplist/'+group_id, {
                        'handleAs': 'json',
                        'method': 'GET',
                        'query': {
@@ -60,8 +62,15 @@ define("stomp/widgets/groups/group-row", [
                                          'group_id': group_id
                                         });
                            dojo.forEach(group_users, function(user, index) {
-                               $("#" + user).attr("checked", true);
-                          });
+                               $("#" + user.id).attr("checked", true);
+                           });
+                           if ( users.length > 0 ) {
+                               $("#user-list-in-group").css('display', 'block');
+                               $("#user-list-warning").css('display', 'none');
+                           } else {
+                               $("#user-list-warning").css('display', 'block');
+                               $("#user-list-in-group").css('display', 'none');
+                           }
                        },
                        function (error) {
                                console.error(error.response.data.msg);
@@ -76,6 +85,15 @@ define("stomp/widgets/groups/group-row", [
                                  'group': group
                                });
 
+               },
+               showGroupInfo: function() {
+                   var widget = this;
+                           new groupContent({'node': 'groups',
+                                             'pos': 'only',
+                                             'opr': 'showGroupUsers',
+                                             'group': widget.group
+                                            });
                }
+ 
            });
 });

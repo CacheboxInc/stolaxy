@@ -92,14 +92,14 @@ function initialize() {
 
                     new appContent({ 'node':'content', 'id': 'applications'});
                     new groupContent({ 'node':'content', 'id': 'groups'});
-                    new userContent({ 'node':'content', 'id': 'users'});
+                    new userContent({ 'node':'content', 'id': 'users', 'roles': roles});
 
                     new hostList({ 'node': 'control_panel', 'id': 'hosts_panel'});
                     $('#dashboard_panel_button').trigger('click');
 
                     new appList({ 'node': 'control_panel', 'id': 'applications_panel', 'role': role});
                     new groupList({ 'node':'control_panel', 'id': 'groups_panel'});
-                    new userList({ 'node':'control_panel', 'id': 'users_panel'});
+                    new userList({ 'node':'control_panel', 'id': 'users_panel', 'roles': roles});
 
                     var cluster_stats = dc.create("div", {"class" : "row"}, "dashcontent");
                     new clusterStats({ 'node': cluster_stats, 'id': 'clusterstats'});

@@ -16,6 +16,9 @@ import cherrypy
 
 role = {'admin': 'admin'}
 
+ADMIN, USER = 'admin', 'user'
+roles = [ADMIN, USER]
+
 class Unauthorized(Exception):
     def __init__(self, message = 'Request not authenticated'):
         Exception.__init__(self, message)

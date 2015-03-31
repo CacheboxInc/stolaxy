@@ -9,50 +9,32 @@
 #
 # Author: Cachebox, Inc (sales@cachebox.com)
 #
-
+import os
+import sys
 import json
 import random
 import subprocess
-import web
+import cherrypy
 
-from auth import authRequestHandler
+from jinja2 import Environment, FileSystemLoader
+env = Environment(loader=FileSystemLoader('./templates'))
+
+sys.path.append(os.getcwd() + "/../spmc")
+from user import User
 
 class Profile:
+    exposed = True
+    def GET(self, arg=None):
+        template = env.get_template('profile.html')
+        user = User.get_by_id(cherrypy.session.get('userid', None))
+        return template.render(session = cherrypy.session, user=user)
 
-    users = {
-               'id': random.randint(1, 100),
-               'created': '19 Jan 2015 12:01:09',
-               'modified': '20 Jan 2015 23:11:10',
-               'name': 'user1',
-               'group_id': random.randint(1, 100),
-               'group': 'group1' 
-             }
+conf = {
+         '/': {
+             'request.dispatch': cherrypy.dispatch.MethodDispatcher(),
+             'tools.sessions.on': True,
+             'tools.response_headers.on': True
+         }
+      }
 
-    @authRequestHandler
-    def GET(self, arg):
-        return {'users': self.users}
-
-    @authRequestHandler
-    def POST(self, op):
-        data = web.input()
-        user_id = data.user_id
-        name = data.user_name
-        return {
-                'msg': "User %s successfully updated" % name,
-                'users':[
-                {
-                  'id': user_id,
-                  'created': '19 Jan 2015 12:01:09',
-                  'modified': '20 Jan 2015 23:11:10',
-                  'name': name,
-                  'group_id': random.randint(1, 100),
-                  'group': 'group1' 
-                }
-               ]
-        }
- 
-urls = (
-        "/(.*)", "Profile"
-       )
-
-app_user = web.application(urls, locals())
+app = cherrypy.Application(Profile(), '/profile', config = conf)

@@ -10,12 +10,17 @@
 # Author: Cachebox, Inc (sales@cachebox.com)
 #
 
+import os
+import sys
 import json
 import random
 import subprocess
 import cherrypy
 
 from src.auth import authRequestHandler, authAdminRequestHandler
+
+sys.path.append(os.getcwd()+"/../spmc")
+from group import Group
 
 class Groups(object):
     exposed = True
@@ -31,27 +36,84 @@ class Groups(object):
 
     @authAdminRequestHandler
     def GET(self, arg):
-        return {'groups': self.groups}
+        groups = []
+        for g in Group.listing():
+            groups.append(g.to_dict())
+        return {'groups': groups}
+
+    def create(self, **args):
+        return Group.create_or_get(**args)
+
+    def update(self, **args):
+        return Group.update(**args)
+
+    def delete(self, group_id):
+        return Group.delete(group_id)
+
+    def removeUserFromGroup(self, group_id, user_id):
+        return Group.removeUserFromGroup(group_id, user_id)
+
+    def addUserToGroup(self, group_id, users):
+        return Group.addUserToGroup(group_id, users)
 
     @cherrypy.tools.json_in()
     @authAdminRequestHandler
     def POST(self, op):
         data = cherrypy.request.json
-        group_id = data.get('group_id', random.randint(0, 100))
-        users = data.get('group_users')
-        name = data.get('group_name')
+        error = False
+        group = False
+
+        if op == 'create':
+            '''
+            Create script for group
+            '''
+            if not Group.get_by_name(data.get('name', None)):
+                group = self.create(**data)
+                group = group.to_dict()
+                msg = "Group %s successfully created" % group.get('name', None)
+            else:
+                error = True
+                msg = "Group %s already exists" % data.get('name', None)
+        elif op == 'update':
+            '''
+            Update script for group
+            '''
+            id = data.get('id', None)
+            name = data.get('name', None)
+            if not Group.group_exists(id=id, name=name):
+                group = self.update(**data)
+                group = group.to_dict()
+                msg = "Group %s successfully updated" % group.get('name', None)
+            else:
+                error = True
+                msg = "Group %s already exists" % data.get('name', None)
+        elif op == 'delete':
+            '''
+            Delete script for group
+            '''
+            id = data.get('id', None)
+            self.delete(id)
+            msg = "Group successfully deleted" 
+        elif op == 'removeuser':
+            '''
+            Delete user from group
+            '''
+            gid = data.get('id', None)
+            users = data.get('users', None)
+            self.removeUserFromGroup(gid, users)
+            msg = "User successfully deleted from group"
+        elif op == 'addusertogroup':
+            '''
+            Add user to group
+            '''
+            gid = data.get('id', None)
+            users = data.get('users', None)
+            self.addUserToGroup(gid, users)
+            msg = "User successfully deleted from group"
         return {
-                'msg': "Group %s successfully created" % name,
-                'groups':[
-                {
-                  'id': group_id,
-                  'created': '19 Jan 2015 12:01:09',
-                  'modified': '20 Jan 2015 23:11:10',
-                  'name': name,
-                  'users': ",".join(['user1', 'user2']),
-                  'user_ids': ",".join(users)
-                } 
-               ]
+                'msg': msg,
+                'error': error,
+                'groups': [group]
         }
  
     

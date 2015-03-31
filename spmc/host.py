@@ -61,7 +61,7 @@ class Host(object):
             host.name = name
             host.ipaddress = new_ipaddress
         session.add(host)
-        session.flush()
+        session.commit()
 
     @classmethod
     def delete(cls, ipaddress):

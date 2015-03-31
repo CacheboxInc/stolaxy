@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <link href="./static//css/bootstrap/bootstrap.min.css" rel="stylesheet" />
+    <link href="./static//css/bootstrap/jasny-bootstrap.min.css" rel="stylesheet" />
+    <link href="./static/css/bootstrap/prettify.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/font.css" rel="stylesheet" type="text/css" />
+    <link href="./static/css/style.css" rel="stylesheet" type="text/css" />
+    <link rel="icon" type="image/png"  href="./static/img/cachebox-favicon.png" />
+
+    <script src="./static/scripts/jquery/jquery.min.js"></script>
+    <script src="./static/scripts/jquery/jquery-ui.min.js"></script>
+    <!-- Bootstrap -->
+    <script src="./static/scripts/bootstrap/bootstrap.min.js"></script>
+    <script src="./static/scripts/bootstrap/jasny-bootstrap.min.js"></script>
+    <script src="./static/scripts/prettify.js"></script>
+    <!-- END: Bootstrap -->
+    <script type="text/javascript">
+      $(document).ready(function(){
+        $('#myTab a').click(function (e) {
+          e.preventDefault();
+          $(this).tab('show');
+        });
+        $("#updateuser").submit(function(e){
+          e.preventDefault();
+          var ser = ($(this).serializeArray());
+          json = {}
+          $.each(ser, function(index, val){
+              json[val.name] = val.value;
+          });
+          console.log(json);
+          $.ajax({
+            url: $(this).attr('action'),
+            data: json,
+            dataType: 'json',
+            type: 'POST',
+            success: function(data) {
+            } 
+          });
+         return false; 
+        });
+      });
+    </script>
+</head>
+
+<body>
+  <div class="container">
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container-fluid" style="padding-left:0px;">
+        <div class="navbar-header" style="width:18%;">
+          <div class="logo">
+            <a target="_blank" class="navbar-brand" href="http://www.cachebox.com" style="padding-top:5px;">
+              <img style="width:185px; height:35px" class="icon" src="./static/img/logo.png" alt="www.stomp.com" />
+            </a>
+          </div>
+        </div>
+        <div class="collapse navbar-collapse">
+          <ul class="nav navbar-nav navbar-right">
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+                <i class="fa fa-wrench"></i> 
+                <span style="text-transform:capitalize;">{{user.username}}</span> 
+                <span class="caret"></span>
+              </a>
+              <ul class="dropdown-menu" role="menu" style="text-align:left;">
+                <li><a href="/">Dashboard</a></li>
+                <li class="divider"></li>
+                <li><a href="/reset">Change Password</a></li>
+                <li class="divider"></li>
+                <li>
+                  <a href="/logout">
+                    <i class="fa fa-sign-out"></i>Logout
+                  </a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+  </div>
+  <hr>
+  <hr>
+  <div class="container">
+    <div class="row">
+      <div class="col-sm-10"><h1>{{user.username}}</h1></div>
+      <div class="col-sm-2">
+        <img src="./static/img/user-profile-default.png" alt="" class="img-circle" />
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-sm-3"><!--left col-->
+        <ul class="list-group">
+          <li class="list-group-item text-muted">Profile</li>
+          <li class="list-group-item text-right"><span class="pull-left"><strong>Joined</strong></span> {{user.created.strftime('%Y-%m-%d')}}</li>
+          <li class="list-group-item text-right"><span class="pull-left"><strong>Last seen</strong></span>{{user.lastlogin.strftime('%Y-%m-%d')}} </li>
+          <li class="list-group-item text-right"><span class="pull-left"><strong>Full name</strong></span>{{user.fullname}}</li>
+        </ul>
+        <ul class="list-group">
+          <li class="list-group-item text-muted">Activity <i class="fa fa-dashboard fa-1x"></i></li>
+          <li class="list-group-item text-right"><span class="pull-left"><strong>Applications</strong></span> 125</li>
+          <li class="list-group-item text-right"><span class="pull-left"><strong>Groups</strong></span> 13</li>
+          <li class="list-group-item text-right"><span class="pull-left"><strong>Users</strong></span> 37</li>
+          <li class="list-group-item text-right"><span class="pull-left"><strong>Hosts</strong></span> 7</li>
+        </ul> 
+      </div><!--/col-3-->
+      <div class="col-sm-9">
+        <ul class="nav nav-tabs" id="myTab">
+          <li class="active"><a href="#home" data-toggle="tab">Recent Activity</a></li>
+          <li><a href="#settings" data-toggle="tab">Settings</a></li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane active" id="home">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <tbody>
+                  <tr><td style="border-top:0px;"><i class="pull-right fa fa-edit"></i> Today, 1:00 - You've been added to group group-1.</td></tr>
+                  <tr><td><i class="pull-right fa fa-edit"></i> Today, 12:23 - You've created a new application app-2.</td></tr>
+                  <tr><td><i class="pull-right fa fa-edit"></i> Today, 12:20 - You've created a new application app-1.</td></tr>
+                  <tr><td><i class="pull-right fa fa-edit"></i> Yesterday - You've deleted an application app-3.</td></tr>
+                  <tr><td><i class="pull-right fa fa-edit"></i> 2 Days Ago - You've updated an Application app-3.</td></tr>
+                  <tr><td><i class="pull-right fa fa-edit"></i> 2 Days Ago - You've updated your profile.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div><!--/tab-pane-->
+
+          <div class="tab-pane" id="settings">
+            <form class="form" action="/user/update" method="post" id="updateuser">
+              <!-- Add user profile update form here. -->
+              <input type="hidden" name="id" value="{{user.id}}" />
+              <div class="form-group">
+                <div class="col-xs-6">
+                  <label for="email"><h4>Email*</h4></label>
+                  <input type="text" class="form-control" name="email" id="email" placeholder="Email" value="{{user.email}}">
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="col-xs-6">
+                  <label for="last_name"><h4>Fullname</h4></label>
+                  <input type="text" class="form-control" name="fullname" id="fullname" placeholder="Fullname" value="{{user.fullname}}">
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="col-xs-12">
+                  <br>
+                  <input class="btn btn-primary pull-right disabled" id="updatebtn" type="submit" value="Update" />
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

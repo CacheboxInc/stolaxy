@@ -901,3 +901,83 @@ li.accelerated {
     border-color: #ff0000;
     border-width: 1px;
 }
+
+.err-login {
+    color: #ff0000;
+    padding-bottom: 5px;
+    float: right;
+}
+
+#user_listing .table>tbody>tr>td {
+    text-align: left;
+}
+
+#user-applications .table>tbody>tr>td {
+    text-align: left;
+}
+
+.link line {
+    stroke: #696969;
+}
+
+.user-app-content {
+    overflow-y: scroll;
+}
+
+.user-list-all {
+    overflow-y: scroll;
+}
+
+.text-stop {
+    color: #a94442;
+}
+
+.text-play {
+    color: #3c763d;
+}
+
+.text-pause {
+    color: #ffff66;
+}
+
+.app-stats-pie {
+    height: 180px;
+    width: 400px;
+    float: left;
+    margin: 10px;
+    border-right: 1px solid rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0px 1px 0px rgba(255, 255, 255, 0.05) inset;
+    box-sizing: border-box;
+}
+
+.app-stats-line {
+    height: 180px;
+    width: 450px;
+    border: 2px dashed;
+    padding: 45px 0;
+    margin: 10px;
+}
+
+#group_users .table>tbody>tr>td {
+    text-align: left;
+}
+
+.popover {
+    width: auto;
+    display: block !important;
+    max-width: 400px !important;
+}
+
+table.table-user-tooltip>tbody>tr>td {
+    border: 0px;
+    padding: 2px 8px 2px 0;
+}
+
+table.table-group-tooltip>tbody>tr>td {
+    border: 0px;
+    padding: 2px 8px 2px 0;
+}
+
+#group-content .node {
+    stroke-width: 2px;
+}

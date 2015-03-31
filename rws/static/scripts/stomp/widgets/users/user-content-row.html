@@ -1,0 +1,7 @@
+<tr class="{{user.id}}_user_content_row">
+  <td>{{user.email}}</td>
+  <td>{{user.firstlogin}}</td>
+  <td>{{user.lastlogin}}</td>
+  <td>{{user.login_count}}</td>
+  <td>{% if user.online %}<i class="fa fa-check-circle"></i>{% else%}<i class="fa fa-times-circle fa-1x"></i> {% endif %}</td>
+</tr>

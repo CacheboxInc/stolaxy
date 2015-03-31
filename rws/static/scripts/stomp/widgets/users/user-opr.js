@@ -34,16 +34,27 @@ define("stomp/widgets/users/user-opr", [
 
                add: function () {
                    var widget = this;
-                   var group = $('input[name=selected_group]:checked', '#user_groups').val()
+                   var roles = JSON.parse(JSON.stringify(widget.roles));
+
+                   if (!widget.validate()) {
+                       return false;
+                   }
+                   var role = $('input[name=user_role]:checked', '#user_roles').val();
+                   var group = $('input[name=selected_group]:checked', '#user_groups').val();
+                   var email = dojo.byId("user_email").value;
+                   var fullname = dojo.byId("user_fullname").value;
+                   var username = dojo.byId("user_name").value;
 
                    var data = {
-                       'user_name': dojo.byId("user_name").value,
-                       'user_group': group
+                       'role': role,
+                       'email': email,
+                       'group': group,
+                       'username': username,
+                       'fullname': fullname
                    };
 
-                   $('#user_opr').trigger('close');
 
-                   util.start_load("Please wait while we create application");
+                   util.start_load("Please wait while we create user");
                    xhr('/user/create', {
                        'handleAs': 'json',
                        'method': 'POST',
@@ -56,10 +67,14 @@ define("stomp/widgets/users/user-opr", [
                    }).then(
                        function (response) {
                            util.stop_load();
+                           response.roles = roles;
                            topic.publish("/stomp/user_create", response);
+                           if (!response.error)
+                               $('#user_opr').trigger('close');
                        },
                        function (error) {
                            util.stop_load();
+                           $('#user_opr').trigger('close');
                            new msgbox({
                                'id': 'dialog',
                                'msg': error.response.data.msg
@@ -77,19 +92,30 @@ define("stomp/widgets/users/user-opr", [
                },
                update: function() {
                    var widget = this;
-                   var group = $('input[name=selected_group]:checked', '#user_groups').val()
+                   var roles = JSON.parse(JSON.stringify(widget.roles));
 
-                   var user_id = $("#user_id").val();
+                   if (!widget.validate()) {
+                       return false;
+                   }
+
+                   var role = $('input[name=user_role]:checked', '#user_roles').val()
+                   var group = $('input[name=selected_group]:checked', '#user_groups').val()
+                   var email = dojo.byId("user_email").value;
+                   var userid = $("#user_id").val();
+                   var fullname = dojo.byId("user_fullname").value;
+                   var username = dojo.byId("user_name").value;
 
                    var data = {
-                       'user_name': dojo.byId("user_name").value,
-                       'user_group': group,
-                       'user_id': user_id
+                       'id': userid,
+                       'role': role,
+                       'group': group,
+                       'email': email,
+                       'fullname': fullname,
+                       'username': username,
                    };
 
-                   $('#user_opr').trigger('close');
 
-                   util.start_load("Please wait while we create the user");
+                   util.start_load("Please wait while we update the user");
                    xhr('/user/update', {
                        'handleAs': 'json',
                        'method': 'POST',
@@ -102,10 +128,15 @@ define("stomp/widgets/users/user-opr", [
                    }).then(
                        function (response) {
                            util.stop_load();
+                           response.roles = roles;
                            topic.publish("/stomp/user_change", response);
+                           if (!response.error)
+                               $('#user_opr').trigger('close');
                        },
                        function (error) {
                            util.stop_load();
+                           if (!response.error)
+                               $('#user_opr').trigger('close');
                            new msgbox({
                                'id': 'dialog',
                                'msg': error.response.data.msg
@@ -116,7 +147,7 @@ define("stomp/widgets/users/user-opr", [
                    var widget = this;
                    var user = widget.user;
                    var data = {
-                       'user_id': user.id,
+                       'id': user.id,
                        'user_name': user.name
                    };
                    $('#user_opr').trigger('close');
@@ -159,6 +190,7 @@ define("stomp/widgets/users/user-opr", [
                },
                postCreate: function () {
                    var widget = this;
+
                    widget.user = this.user;
                    widget.placeAt(dojo.byId("dialog"));
                    widget.template = new dtl.Template(widget.templateString);
@@ -172,6 +204,42 @@ define("stomp/widgets/users/user-opr", [
                        centered: true,
                        destroyOnClose: true
                    });
+               },
+               validate: function () {
+                   var widget = this;
+                   widget.cleanup();
+
+                   //User email validation.
+                   u_email = dojo.byId("user_email").value;
+                   if ($.trim(u_email) == '') {
+                       $("#user_email").addClass('err-highlight-input');
+                       return false;
+                   } else if (!util.is_valid_email(u_email)) {
+                       $("#user_email").addClass('err-highlight-input');
+                       return false;
+                   }
+
+                   //Username validation.
+                   u_name = dojo.byId("user_name").value;
+                   if ($.trim(u_name) == '') {
+                       $("#user_name").addClass('err-highlight-input');
+                       return false;
+                   } else if (!util.is_valid_username(u_name)) {
+                       $("#user_name").addClass('err-highlight-input');
+                       return false;
+                   }
+
+                   //User role validation.
+                   u_role = $("input[name=user_role]:checked", "#user_roles");
+                   if (typeof u_role.val() == 'undefined') {
+                       $("#user_roles").parent('div.panel').addClass("err-highlight-input");
+                       return false;
+                   }
+                   return true;
+               },
+               cleanup: function () {
+                   $("#user_name, #user_email").removeClass('err-highlight-input');
+                   $("#user_roles").parent('div.panel').removeClass("err-highlight-input");
                }
        });
 });

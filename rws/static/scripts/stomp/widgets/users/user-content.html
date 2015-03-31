@@ -7,11 +7,42 @@
            <div class="col-md-12">
                 <div class="panel">
                     <div class="panel-heading">
+                        <h3 class="panel-title pull-left">Stats</h3>
+                        <div class="clearfix"></div>
+                    </div>
+                    <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:250px;">
+                      <!-- Display all users stats here -->
+                      <div class="col-md-6">
+                        <div id="all_users_stats_pie_container" class="app-stats-pie">
+                         
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div id="all_users_stats_graph_container" class="app-stats-graph">
+                         
+                        </div>
+                      </div>
+                    </div>
+                    <div class="panel-heading">
                         <h3 class="panel-title pull-left">Users</h3>
                         <div class="clearfix"></div>
                     </div>
-                    <div class="panel-body" style="padding-bottom:0px;padding-top:5px;height:500px;">
-                        <div id="applications_graphs">
+                    <div class="panel-body user-list-all" style="padding-bottom:0px;padding-top:5px;height:260px;">
+                        <div id="user_listing" >
+                          <table class="table table-striped" >
+                            <thead>
+                              <tr>
+                                <th>Email</th>
+			        <th>First Login</th>
+                                <th>Last Login</th>
+                                <th>Login Count</th>
+                                <th>Online</th>
+                              </tr>
+                            </thead>
+                            <tbody id="ulist_body">
+                            </tbody>
+                            <tfoot></tfoot>
+                           </table>
                         </div>
                     </div>
                 </div>
